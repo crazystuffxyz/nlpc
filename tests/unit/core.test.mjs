@@ -1,146 +1,144 @@
 // unit tests - node:test, no extra deps
-import { test } from 'node:test'; // node test
-import assert from 'node:assert/strict'; // assert
-import { parseStructured } from '../../lib/parser/structured.mjs'; // parser
-import { chunkProse } from '../../lib/parser/prose.mjs'; // prose
-import { buildIR } from '../../lib/ir/builder.mjs'; // ir builder
-import { validateIR } from '../../lib/ir/validator.mjs'; // validator
-import { resolveRequirements, lookup } from '../../lib/deps/resolver.mjs'; // deps
-import { emitCpp } from '../../lib/codegen/emit.mjs'; // codegen
-import { emitProject } from '../../lib/codegen/cmake.mjs'; // cmake
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { parseStructured } from '../../lib/parser/structured.mjs';
+import { chunkProse } from '../../lib/parser/prose.mjs';
+import { buildIR } from '../../lib/ir/builder.mjs';
+import { validateIR } from '../../lib/ir/validator.mjs';
+import { resolveRequirements, lookup } from '../../lib/deps/resolver.mjs';
+import { emitCpp } from '../../lib/codegen/emit.mjs';
+import { emitProject } from '../../lib/codegen/cmake.mjs';
 
-console.log('unit tests load'); // trace
-
-test('parser extracts Require', () => { // req
-  const r = parseStructured('Require the fmt library.'); // parse
-  assert.equal(r.blocks.length, 1); // one
-  assert.equal(r.blocks[0].kind, 'require'); // kind
-  assert.match(r.blocks[0].name, /fmt/); // name
+test('parser extracts Require', () => {
+  const r = parseStructured('Require the fmt library.');
+  assert.equal(r.blocks.length, 1);
+  assert.equal(r.blocks[0].kind, 'require');
+  assert.match(r.blocks[0].name, /fmt/);
 });
 
-test('parser extracts function with return', () => { // fn
-  const r = parseStructured('Make a function called greet that takes a person name and returns a string.'); // parse
-  const f = r.blocks.find(b => b.kind === 'function'); // find
-  assert.ok(f); // ok
-  assert.equal(f.name, 'greet'); // name
-  assert.ok(f.params.length >= 1); // params
+test('parser extracts function with return', () => {
+  const r = parseStructured('Make a function called greet that takes a person name and returns a string.');
+  const f = r.blocks.find(b => b.kind === 'function');
+  assert.ok(f);
+  assert.equal(f.name, 'greet');
+  assert.ok(f.params.length >= 1);
 });
 
-test('parser extracts main block body', () => { // main
-  const r = parseStructured('When the program starts:\n    print Hello\n    ask name'); // parse
-  const m = r.blocks.find(b => b.kind === 'main'); // find
-  assert.ok(m); // ok
-  assert.ok(m.body.length >= 2); // body
+test('parser extracts main block body', () => {
+  const r = parseStructured('When the program starts:\n    print Hello\n    ask name');
+  const m = r.blocks.find(b => b.kind === 'main');
+  assert.ok(m);
+  assert.ok(m.body.length >= 2);
 });
 
-test('parser extracts REST application', () => { // rest
-  const r = parseStructured('Application:\n    type: REST API\n\nGET /hello'); // parse
-  assert.equal(r.blocks[0].kind, 'application_header'); // header
-  assert.ok(r.blocks.find(b => b.kind === 'app_field')); // field
-  assert.ok(r.blocks.find(b => b.kind === 'route')); // route
+test('parser extracts REST application', () => {
+  const r = parseStructured('Application:\n    type: REST API\n\nGET /hello');
+  assert.equal(r.blocks[0].kind, 'application_header');
+  assert.ok(r.blocks.find(b => b.kind === 'app_field'));
+  assert.ok(r.blocks.find(b => b.kind === 'route'));
 });
 
-test('parser treats unknown lines as prose', () => { // prose
-  const r = parseStructured('hello world\nthis is a sentence'); // parse
-  assert.equal(r.blocks.length, 0); // no blocks
-  assert.equal(r.prose.length, 2); // prose
+test('parser treats unknown lines as prose', () => {
+  const r = parseStructured('hello world\nthis is a sentence');
+  assert.equal(r.blocks.length, 0);
+  assert.equal(r.prose.length, 2);
 });
 
-test('prose chunker splits on blanks and length', () => { // chunk
-  const c = chunkProse(['a','b','','c','d','e','f','g','h','i','j','k']); // chunk
-  assert.ok(c.length >= 1); // at least
+test('prose chunker splits on blanks and length', () => {
+  const c = chunkProse(['a','b','','c','d','e','f','g','h','i','j','k']);
+  assert.ok(c.length >= 1);
 });
 
-test('buildIR produces valid IR for hello', () => { // ir
-  const r = parseStructured(`When the program starts:\n    print Hello, world!`); // parse
-  const ir = buildIR(r.blocks, r.prose, 'hello'); // build
-  assert.equal(ir.program.name, 'hello'); // name
-  assert.equal(ir.program.kind, 'console'); // kind
-  const v = validateIR(ir); // validate
-  assert.ok(v.ok, JSON.stringify(v.errors)); // ok
+test('buildIR produces valid IR for hello', () => {
+  const r = parseStructured(`When the program starts:\n    print Hello, world!`);
+  const ir = buildIR(r.blocks, r.prose, 'hello');
+  assert.equal(ir.program.name, 'hello');
+  assert.equal(ir.program.kind, 'console');
+  const v = validateIR(ir);
+  assert.ok(v.ok, JSON.stringify(v.errors));
 });
 
-test('buildIR auto-injects http deps for rest kind', () => { // rest
-  const r = parseStructured('Application:\n    type: REST API'); // parse
-  const ir = buildIR(r.blocks, r.prose, 'api'); // build
-  assert.equal(ir.program.kind, 'rest'); // rest
-  assert.ok(ir.requirements.find(x => /httplib|cpr/i.test(x.name))); // http
+test('buildIR auto-injects http deps for rest kind', () => {
+  const r = parseStructured('Application:\n    type: REST API');
+  const ir = buildIR(r.blocks, r.prose, 'api');
+  assert.equal(ir.program.kind, 'rest');
+  assert.ok(ir.requirements.find(x => /httplib|cpr/i.test(x.name)));
 });
 
-test('buildIR records function returns', () => { // fn returns
-  const r = parseStructured('Make a function called sq that takes a number and returns an int.'); // parse
-  const ir = buildIR(r.blocks, r.prose, 'sq'); // build
-  const f = ir.declarations[0]; // fn
-  assert.equal(f.returns, 'int'); // int
+test('buildIR records function returns', () => {
+  const r = parseStructured('Make a function called sq that takes a number and returns an int.');
+  const ir = buildIR(r.blocks, r.prose, 'sq');
+  const f = ir.declarations[0];
+  assert.equal(f.returns, 'int');
 });
 
-test('validateIR rejects bad kind', () => { // bad
-  const v = validateIR({ program: { name: 'x', kind: 'unknown' } }); // bad
-  assert.equal(v.ok, false); // fail
+test('validateIR rejects bad kind', () => {
+  const v = validateIR({ program: { name: 'x', kind: 'unknown' } });
+  assert.equal(v.ok, false);
 });
 
-test('dep resolver maps fmt, json, http, graphics, sqlite', () => { // deps
-  assert.equal(lookup('fmt'), 'fmt'); // fmt
-  assert.equal(lookup('JSON parser library'), 'nlohmann-json'); // json
-  assert.equal(lookup('HTTP client'), 'cpp-httplib'); // http
-  assert.equal(lookup('graphics library'), 'sfml'); // gfx
-  assert.equal(lookup('sqlite'), 'sqlite3'); // sql
+test('dep resolver maps fmt, json, http, graphics, sqlite', () => {
+  assert.equal(lookup('fmt'), 'fmt');
+  assert.equal(lookup('JSON parser library'), 'nlohmann-json');
+  assert.equal(lookup('HTTP client'), 'cpp-httplib');
+  assert.equal(lookup('graphics library'), 'sfml');
+  assert.equal(lookup('sqlite'), 'sqlite3');
 });
 
-test('dep resolver returns unknown for nonsense', () => { // unknown
-  assert.equal(lookup('xyzzy-library-of-doom'), null); // null
+test('dep resolver returns unknown for nonsense', () => {
+  assert.equal(lookup('xyzzy-library-of-doom'), null);
 });
 
-test('resolveRequirements dedupes and unknown-lists', () => { // resolve
-  const r = resolveRequirements([{ name: 'fmt', source: 'vcpkg' }, { name: 'JSON parser', source: 'vcpkg' }, { name: 'xyzzy', source: 'vcpkg' }]); // resolve
-  assert.ok(r.packages.includes('fmt')); // fmt
-  assert.ok(r.packages.includes('nlohmann-json')); // json
-  assert.deepEqual(r.unknown, ['xyzzy']); // unknown
+test('resolveRequirements dedupes and unknown-lists', () => {
+  const r = resolveRequirements([{ name: 'fmt', source: 'vcpkg' }, { name: 'JSON parser', source: 'vcpkg' }, { name: 'xyzzy', source: 'vcpkg' }]);
+  assert.ok(r.packages.includes('fmt'));
+  assert.ok(r.packages.includes('nlohmann-json'));
+  assert.deepEqual(r.unknown, ['xyzzy']);
 });
 
-test('emitCpp produces valid c++ for hello world', () => { // emit
-  const r = parseStructured(`When the program starts:\n    print Hello, world!`); // parse
-  const ir = buildIR(r.blocks, r.prose, 'hello'); // build
-  const cpp = emitCpp(ir); // emit
-  assert.match(cpp, /#include <iostream>/); // include
-  assert.match(cpp, /int main\(\)/); // main
-  assert.match(cpp, /Hello, world!/); // text
-  assert.match(cpp, /return 0;/); // ret
+test('emitCpp produces valid c++ for hello world', () => {
+  const r = parseStructured(`When the program starts:\n    print Hello, world!`);
+  const ir = buildIR(r.blocks, r.prose, 'hello');
+  const cpp = emitCpp(ir);
+  assert.match(cpp, /#include <iostream>/);
+  assert.match(cpp, /int main\(\)/);
+  assert.match(cpp, /Hello, world!/);
+  assert.match(cpp, /return 0;/);
 });
 
-test('emitCpp includes fmt header and links to fmt when fmt required', async () => { // fmt
-  const r = parseStructured(`Require the fmt library.\nWhen the program starts:\n    print Hi`); // parse
-  const ir = buildIR(r.blocks, r.prose, 'fmtapp'); // build
-  const { setReqFmt } = await import('../../lib/codegen/emit.mjs'); // import for setter
-  setReqFmt(true); // set
-  const cpp = emitCpp(ir); // emit
-  assert.match(cpp, /#include <fmt\/core\.h>/); // include
+test('emitCpp includes fmt header and links to fmt when fmt required', async () => {
+  const r = parseStructured(`Require the fmt library.\nWhen the program starts:\n    print Hi`);
+  const ir = buildIR(r.blocks, r.prose, 'fmtapp');
+  const { setReqFmt } = await import('../../lib/codegen/emit.mjs');
+  setReqFmt(true);
+  const cpp = emitCpp(ir);
+  assert.match(cpp, /#include <fmt\/core\.h>/);
   // we don't actually use fmt::print (v12 ABI issues) - just include the header
-  assert.match(cpp, /std::cout/); // still output to cout
+  assert.match(cpp, /std::cout/);
 });
 
-test('emitCpp handles http server for rest kind', () => { // http
-  const r = parseStructured('Application:\n    type: REST API\n\nGET /hello'); // parse
-  const ir = buildIR(r.blocks, r.prose, 'api'); // build
-  const cpp = emitCpp(ir); // emit
-  assert.match(cpp, /httplib::Server/); // server
-  assert.match(cpp, /svr\.get/); // route
+test('emitCpp handles http server for rest kind', () => {
+  const r = parseStructured('Application:\n    type: REST API\n\nGET /hello');
+  const ir = buildIR(r.blocks, r.prose, 'api');
+  const cpp = emitCpp(ir);
+  assert.match(cpp, /httplib::Server/);
+  assert.match(cpp, /svr\.get/);
 });
 
-test('emitProject produces CMakeLists with find_package for known deps', () => { // cmake
-  const r = parseStructured('Require the fmt library.\nRequire the JSON parser library.'); // parse
-  const ir = buildIR(r.blocks, r.prose, 'demo'); // build
-  const p = emitProject(ir, 'demo'); // emit
-  assert.match(p.cmake, /find_package\(fmt/); // fmt
-  assert.match(p.cmake, /find_package\(nlohmann_json/); // json
-  assert.deepEqual(JSON.parse(p.vcpkg).dependencies.sort(), ['fmt', 'nlohmann-json']); // deps
+test('emitProject produces CMakeLists with find_package for known deps', () => {
+  const r = parseStructured('Require the fmt library.\nRequire the JSON parser library.');
+  const ir = buildIR(r.blocks, r.prose, 'demo');
+  const p = emitProject(ir, 'demo');
+  assert.match(p.cmake, /find_package\(fmt/);
+  assert.match(p.cmake, /find_package\(nlohmann_json/);
+  assert.deepEqual(JSON.parse(p.vcpkg).dependencies.sort(), ['fmt', 'nlohmann-json']);
 });
 
-test('emitProject adds openssl transitive for cpp-httplib', () => { // trans
-  const r = parseStructured('Require the HTTP client library.'); // parse
-  const ir = buildIR(r.blocks, r.prose, 'h'); // build
-  const p = emitProject(ir, 'h'); // emit
-  const deps = JSON.parse(p.vcpkg).dependencies; // deps
-  assert.ok(deps.includes('cpp-httplib')); // http
-  assert.ok(deps.includes('openssl')); // ssl
+test('emitProject adds openssl transitive for cpp-httplib', () => {
+  const r = parseStructured('Require the HTTP client library.');
+  const ir = buildIR(r.blocks, r.prose, 'h');
+  const p = emitProject(ir, 'h');
+  const deps = JSON.parse(p.vcpkg).dependencies;
+  assert.ok(deps.includes('cpp-httplib'));
+  assert.ok(deps.includes('openssl'));
 });
