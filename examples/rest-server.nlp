@@ -1,0 +1,12 @@
+// a tiny rest server
+Application:
+    type: REST API
+
+Require the HTTP client library.
+Require the JSON parser library.
+
+When the program starts:
+    serve on port 8080
+
+GET /hello
+POST /echo

@@ -1,0 +1,10 @@
+// greeter that asks the user's name and prints a greeting using fmt
+Create a console application.
+
+Require the fmt library.
+
+Make a function called greet that takes a person's name and returns a greeting.
+
+When the program starts:
+    ask the user for their name
+    print the greeting

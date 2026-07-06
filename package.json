@@ -1,0 +1,44 @@
+{
+  "name": "nlpc",
+  "version": "0.1.0",
+  "description": "natural-language programming language compiler - english in, runnable c++ out",
+  "type": "module",
+  "bin": {
+    "nlpc": "bin/nlpc.mjs"
+  },
+  "main": "lib/runner.mjs",
+  "scripts": {
+    "test": "node --test --test-reporter=spec tests/unit tests/integration tests/negative tests/security",
+    "test:e2e": "node --test --test-reporter=spec tests/e2e",
+    "test:perf": "node tests/performance/bench.mjs",
+    "smoke": "node tests/smoke.mjs"
+  },
+  "files": [
+    "bin",
+    "lib",
+    "README.md",
+    "LICENSE",
+    "docs"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "nlp",
+    "compiler",
+    "ollama",
+    "cpp",
+    "vcpkg",
+    "natural-language",
+    "code-generation"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "chalk": "^5.3.0",
+    "commander": "^15.0.0",
+    "ollama": "^0.6.3",
+    "ora": "^8.2.0"
+  }
+}

@@ -1,0 +1,8 @@
+// reads and writes a json file
+Require the JSON parser library.
+
+Make a function called load_config that takes a path and returns the contents.
+
+When the program starts:
+    ask the user for the config path
+    print the config
