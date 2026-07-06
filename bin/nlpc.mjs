@@ -6,6 +6,9 @@ import ora from 'ora';
 import { run as compileRun } from '../lib/runner.mjs';
 import { doctor } from '../lib/doctor.mjs';
 import { loadConfig } from '../lib/config.mjs';
+import { setup } from '../lib/setup.mjs';
+import { buildProject, loadProject } from '../lib/project.mjs';
+import { register } from '../lib/register.mjs';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -78,6 +81,52 @@ program
       console.error(chalk.red(e.stack || e.message));
       process.exit(1);
     }
+  });
+
+program
+  .command('build')
+  .argument('[path]', 'project dir or .nlp file', '.')
+  .option('-o, --out <dir>', 'output directory', 'build-out')
+  .option('--no-repair', 'disable the compile-error repair loop')
+  .option('--no-run', 'compile only, do not run')
+  .option('--model <name>', 'ollama model (default: auto-pick from ollama list)')
+  .option('--vcpkg-root <path>', 'path to vcpkg (else $VCPKG_ROOT)')
+  .action(async (pathArg, opts) => {
+    const cfg = await loadConfig(opts);
+    const abs = resolve(pathArg);
+    const isFile = abs.endsWith('.nlp');
+    const spinner = ora(isFile ? 'compiling' : 'building project').start();
+    try {
+      if (isFile) {
+        const res = await compileRun({ file: abs, opts, cfg, spinner });
+        spinner.succeed(chalk.green(`built ${res.binary}`));
+      } else {
+        const res = await buildProject({ dir: abs, opts, cfg, spinner });
+        spinner.succeed(chalk.green(`built ${res.entries.length} entries -> ${res.outDir}`));
+      }
+    } catch (e) {
+      spinner.fail(chalk.red('build failed'));
+      console.error(chalk.red(e.stack || e.message));
+      process.exit(1);
+    }
+  });
+
+program
+  .command('setup')
+  .description('detect and install missing toolchain (g++, cmake, vcpkg, ollama)')
+  .option('--yes', 'non-interactive: install without asking')
+  .option('--dry-run', 'print what would be installed, do not run')
+  .action(async (opts) => {
+    const r = await setup({ yes: !!opts.yes, dryRun: !!opts.dryRun });
+    process.exit(r.ok ? 0 : 1);
+  });
+
+program
+  .command('register')
+  .description('register .nlp files with the OS so double-click runs nlpc compile')
+  .action(async () => {
+    const r = await register();
+    if (r.ok) console.log(chalk.green('registered'));
   });
 
 program

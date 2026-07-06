@@ -1,0 +1,23 @@
+# example nlpc project manifest. place at the root of your project.
+# if missing, `nlpc build` discovers all .nlp files recursively.
+
+[project]
+name = "my-app"
+version = "0.1.0"
+description = "what this project is"
+
+[build]
+out = "build-out"           # output directory
+parallel = true             # compile entries concurrently
+generator = "Ninja"         # cmake generator
+build_type = "Release"      # cmake build type
+
+# ordered list of entries. omit [[entries]] block to auto-discover.
+# each entry becomes a single binary.
+[[entries]]
+file = "src/main.nlp"        # source .nlp file
+name = "main"                # binary name (defaults to file basename)
+
+[[entries]]
+file = "src/worker.nlp"
+name = "worker"

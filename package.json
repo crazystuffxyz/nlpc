@@ -11,11 +11,13 @@
     "test": "node --test --test-reporter=spec tests/unit tests/integration tests/negative tests/security",
     "test:e2e": "node --test --test-reporter=spec tests/e2e",
     "test:perf": "node tests/performance/bench.mjs",
-    "smoke": "node tests/smoke.mjs"
+    "smoke": "node tests/smoke.mjs",
+    "postinstall": "node -e \"console.log('nlpc installed. run \\'nlpc setup\\' to check the toolchain, or \\'nlpc register\\' to bind .nlp files on Windows.')\""
   },
   "files": [
     "bin",
     "lib",
+    "scripts",
     "README.md",
     "LICENSE",
     "docs"
