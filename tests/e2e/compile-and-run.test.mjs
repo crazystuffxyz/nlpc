@@ -30,7 +30,7 @@ it('compile a hello-world .nlp to a running executable', async () => {
   process.env.NLPC_OFFLINE = '1';
   const { run } = await import('../../lib/runner.mjs');
   const cfg = {
-    model: 'codellama:7b-instruct',
+    model: null,
     ollamaHost: 'http://127.0.0.1:11434',
     vcpkgRoot: VCPKG,
     cmake: 'cmake',

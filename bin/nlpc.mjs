@@ -25,7 +25,7 @@ program
   .option('-o, --out <dir>', 'output directory', 'build-out')
   .option('--no-repair', 'disable the compile-error repair loop')
   .option('--no-run', 'compile only, do not run')
-  .option('--model <name>', 'ollama model', 'codellama:7b-instruct')
+  .option('--model <name>', 'ollama model (default: auto-pick from ollama list)')
   .option('--vcpkg-root <path>', 'path to vcpkg (else $VCPKG_ROOT)')
   .option('--keep-build', 'do not wipe build dir before compiling')
   .action(async (file, opts) => {
@@ -65,7 +65,7 @@ program
   .command('run')
   .argument('<file>', 'input .nlp file')
   .option('-o, --out <dir>', 'output directory', 'build-out')
-  .option('--model <name>', 'ollama model', 'codellama:7b-instruct')
+  .option('--model <name>', 'ollama model (default: auto-pick from ollama list)')
   .option('--vcpkg-root <path>', 'path to vcpkg (else $VCPKG_ROOT)')
   .action(async (file, opts) => {
     const cfg = await loadConfig(opts);
@@ -86,7 +86,7 @@ program
   .option('-o, --out <dir>', 'output directory', 'build-out')
   .option('--no-repair', 'disable the compile-error repair loop')
   .option('--no-run', 'recompile only, do not run the binary')
-  .option('--model <name>', 'ollama model', 'codellama:7b-instruct')
+  .option('--model <name>', 'ollama model (default: auto-pick from ollama list)')
   .option('--vcpkg-root <path>', 'path to vcpkg (else $VCPKG_ROOT)')
   .action(async (file, opts) => {
     const cfg = await loadConfig(opts);
