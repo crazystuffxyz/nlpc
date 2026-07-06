@@ -53,8 +53,13 @@ nlpc compile path/to/program.nlp            # compile + run
 nlpc compile program.nlp --no-run           # build only
 nlpc compile program.nlp -o ./out           # custom out dir
 nlpc compile program.nlp --keep-build       # don't wipe build dir
+nlpc watch path/to/program.nlp              # rebuild + rerun on save
 nlpc doctor                                 # check toolchain
 ```
+
+`watch` recompiles and reruns the binary every time the .nlp file is
+saved. it debounces rapid edits (200ms) and kills the prior binary
+before relaunching. ctrl-c to stop.
 
 `doctor` prints `[ok]`/`[FAIL]` for node, c++, cmake, vcpkg, and ollama.
 if anything's red, fix it before compiling.

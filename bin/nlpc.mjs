@@ -80,6 +80,21 @@ program
     }
   });
 
+program
+  .command('watch')
+  .argument('<file>', 'input .nlp file')
+  .option('-o, --out <dir>', 'output directory', 'build-out')
+  .option('--no-repair', 'disable the compile-error repair loop')
+  .option('--no-run', 'recompile only, do not run the binary')
+  .option('--model <name>', 'ollama model', 'codellama:7b-instruct')
+  .option('--vcpkg-root <path>', 'path to vcpkg (else $VCPKG_ROOT)')
+  .action(async (file, opts) => {
+    const cfg = await loadConfig(opts);
+    const spinner = ora('watching').start();
+    const { watchFile } = await import('../lib/watch.mjs');
+    await watchFile({ file: resolve(file), opts, cfg, spinner });
+  });
+
 program.parseAsync(process.argv).catch(e => {
   console.error(chalk.red('cli error'), e);
   process.exit(1);
