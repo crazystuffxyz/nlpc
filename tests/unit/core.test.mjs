@@ -536,3 +536,19 @@ test('reserved variable name compiles (was: set class = 5 rejected)', () => {
   assert.match(cpp, /auto class_n = 5/);
   assert.doesNotMatch(cpp, /auto\s+class\s*=/);
 });
+
+test('PATCH /path is parsed and accepted by the schema (was: validator rejected http_patch)', () => {
+  // bug: the schema's STMT_PROPS.kind enum was missing `http_patch`,
+  // so a PATCH /foo stmt would build a valid IR but the validator
+  // would reject it. the user got `ir invalid: /behaviors/0/body/N/kind
+  // must be equal to one of the allowed values` and the build died
+  // before reaching cmake.
+  const src = 'Create a console application.\nWhen the program starts:\n    PATCH /api/v1\n';
+  const r = parseStructured(src);
+  const ir = buildIR(r.blocks, r.prose, 'p');
+  const v = validateIR(ir);
+  assert.equal(v.ok, true, 'schema must accept http_patch: ' + JSON.stringify(v.errors));
+  const cpp = emitCpp(ir);
+  // the cli method for PATCH is PascalCase Patch
+  assert.match(cpp, /cli\.Patch\("\/api\/v1"/);
+});
