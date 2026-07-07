@@ -289,3 +289,20 @@ test('return with unary minus passes through as c++ expression', () => {
   assert.match(cpp, /return -value;/);
   assert.doesNotMatch(cpp, /return "-value";/);
 });
+
+test('ask noun-phrase uses last word as variable name', () => {
+  // bug: `ask the user for their name` used to make a `their_name`
+  // variable (slug of the whole phrase) and `ask for age` made
+  // `for_age`. the last word of the phrase is the noun and is what
+  // the user means.
+  const src = 'Create a console application.\nWhen the program starts:\n    ask the user for their name\n    ask for age\n    ask favorite color\n';
+  const r = parseStructured(src);
+  const ir = buildIR(r.blocks, r.prose, 'p');
+  const cpp = emitCpp(ir);
+  assert.match(cpp, /std::string name;/);
+  assert.match(cpp, /std::string age;/);
+  assert.match(cpp, /std::string color;/);
+  assert.doesNotMatch(cpp, /std::string their_name/);
+  assert.doesNotMatch(cpp, /std::string for_age/);
+  assert.doesNotMatch(cpp, /std::string favorite_color/);
+});
