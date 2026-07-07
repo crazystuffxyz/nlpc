@@ -193,8 +193,43 @@ npm run test:e2e          # real compile + run (skips if no g++)
 npm run test:perf         # 200-line .nlp under 2s budget
 ```
 
-32 tests covering the parser, IR builder, dep resolver, codegen, cmake
+32 → 145 tests covering the parser, IR builder, dep resolver, codegen, cmake
 emitter, and the runner's allowlist/injection defenses.
+
+## changelog
+
+**v1.0.1** (post-v1.0.0 audit) - 7 fixes from a background review that
+survived the v1.0.0 fix loop:
+
+- **RCE fix**: `name + system("evil")` no longer compiles to a
+  function call. EXPR_RE and cppRhs now reject parens/brackets in
+  expression context and any function-call shape before the
+  expression guard.
+- **if-cond fix**: `if x is positive:` no longer compiles to
+  invalid c++. new isValidCond() requires at most one
+  whitespace-separated letter-only token.
+- **top-level set fix**: `set x = 5` now produces `int x = 5;`,
+  not `std::string x = "5";`. builder parses the value via
+  parseValue and tags the IR with isString + type; emitter
+  honors them.
+- **parseValue fix**: `"a" + "b` no longer gets stripped to a
+  string with inner quotes. inner containing `+` or unescaped
+  quotes falls through to the expression path.
+- **bodySetResponse fix**: `call preserve()` no longer suppresses
+  the 'ok' fallback. changed the substring check to an exact
+  ident match.
+- **cmake port coverage**: 14 ports (imgui, qt, wxwidgets, libpq,
+  mysql-connector-cpp, hiredis, grpc, protobuf, msgpack, date,
+  magic-enum, frozen, tinyxml2, fast-cpp-csv-parser) now have
+  find_package and link entries.
+- **openssl no longer forced**: openssl is no longer a forced
+  cpp-httplib transitive. plain HTTP doesn't pull in the heavy
+  ssl build.
+- **resolver substring fix**: `lookup('')` returns null, `lookup('f')`
+  returns null. longest-key-first ordering prevents short common
+  substrings from matching before specific keys.
+
+**v1.0.0** - first github release.
 
 ## building a standalone binary
 
