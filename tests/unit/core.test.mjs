@@ -568,3 +568,17 @@ test('for each over [1,2,3] converts to c++ {1,2,3} brace-list', async () => {
   assert.match(cpp, /for \(auto& n : \{1,2,3,4,5\}\)/);
   assert.doesNotMatch(cpp, /for \(auto& n : "\[/);
 });
+
+test('hex literal 0xFF is a number, not a string (was: set hex = 0xFF emitted "0xFF")', () => {
+  // bug: parseValue only matched signed/unsigned decimal, so hex and
+  // binary literals fell through to the bare-token branch and ended
+  // up as the literal string "0xFF". `auto hex = "0xFF";` instead of
+  // `auto hex = 255;`. users with hardware/embedded intent hit this.
+  const src = 'Create a console application.\nWhen the program starts:\n    set hex = 0xFF\n    set bin = 0b1010\n    print hex\n';
+  const r = parseStructured(src);
+  const ir = buildIR(r.blocks, r.prose, 'p');
+  const cpp = emitCpp(ir);
+  assert.match(cpp, /auto hex = 255;/);
+  assert.match(cpp, /auto bin = 10;/);
+  assert.doesNotMatch(cpp, /auto hex = "0xFF"/);
+});

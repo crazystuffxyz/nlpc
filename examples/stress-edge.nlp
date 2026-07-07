@@ -1,0 +1,30 @@
+// STRESS 6: many more edge cases
+// edges: while-loop, switch/case, set with hex literal,
+//        print arithmetic, string concat, multi-line string,
+//        calling non-existent function, set with expression
+Create a console application.
+
+Make a function called square(int n) that returns an int:
+    return n * n
+
+Make a function called fact(int n) that returns an int:
+    if n == 0:
+        return 1
+    return n * fact(n - 1)
+
+Make a function called greet(string name) that returns a string:
+    return "Hello, " + name
+
+When the program starts:
+    set x = 16
+    set y = x + 4
+    set hex = 0xFF
+    set empty_str = ""
+    set neg_zero = -0
+    print y
+    print hex
+    print empty_str
+    call square(5)
+    call fact(5)
+    call greet("World")
+    print "done"
