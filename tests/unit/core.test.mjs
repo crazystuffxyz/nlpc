@@ -146,13 +146,29 @@ test('emitProject produces CMakeLists with find_package for known deps', () => {
   assert.deepEqual(JSON.parse(p.vcpkg).dependencies.sort(), ['fmt', 'nlohmann-json']);
 });
 
-test('emitProject adds openssl transitive for cpp-httplib', () => {
+test('emitProject does NOT force openssl as a cpp-httplib transitive', () => {
+  // bug: openssl used to be added automatically whenever cpp-httplib
+  // was required. cpp-httplib's `ssl` feature is opt-in, so plain
+  // HTTP must NOT pull in a heavy ssl build. only add openssl when
+  // the user explicitly required it.
   const r = parseStructured('Require the HTTP client library.');
   const ir = buildIR(r.blocks, r.prose, 'h');
   const p = emitProject(ir, 'h');
   const deps = JSON.parse(p.vcpkg).dependencies;
   assert.ok(deps.includes('cpp-httplib'));
+  assert.equal(deps.includes('openssl'), false, 'openssl was force-added as a cpp-httplib transitive');
+});
+
+test('emitProject does add openssl when explicitly required', () => {
+  // if the user `Require the SSL library`, openssl should land in
+  // vcpkg.json and find_package + link should be in the cmake.
+  const r = parseStructured('Require the SSL library.');
+  const ir = buildIR(r.blocks, r.prose, 'ssl');
+  const p = emitProject(ir, 'ssl');
+  const deps = JSON.parse(p.vcpkg).dependencies;
   assert.ok(deps.includes('openssl'));
+  assert.match(p.cmake, /find_package\(OpenSSL/);
+  assert.match(p.cmake, /OpenSSL::SSL/);
 });
 
 test('top-level if captures indented body (bug #13)', () => {
