@@ -142,3 +142,22 @@ test('emitProject adds openssl transitive for cpp-httplib', () => {
   assert.ok(deps.includes('cpp-httplib'));
   assert.ok(deps.includes('openssl'));
 });
+
+test('top-level if captures indented body (bug #13)', () => {
+  const r = parseStructured('Create a console application.\nif x:\n    print hello\nprint world\n');
+  const ir = buildIR(r.blocks, r.prose, 'iftop');
+  const cpp = emitCpp(ir);
+  // both the if body and the trailing print should land in main()
+  assert.match(cpp, /if \(x\)/);
+  assert.match(cpp, /std::cout << "hello"/);
+  assert.match(cpp, /std::cout << "world"/);
+});
+
+test('top-level for each captures indented body (bug #13)', () => {
+  const r = parseStructured('Create a console application.\nfor each item in items:\n    print item\nprint done\n');
+  const ir = buildIR(r.blocks, r.prose, 'fortop');
+  const cpp = emitCpp(ir);
+  assert.match(cpp, /for \(auto& item/);
+  assert.match(cpp, /std::cout << item/);
+  assert.match(cpp, /std::cout << "done"/);
+});
