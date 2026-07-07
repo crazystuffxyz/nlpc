@@ -115,13 +115,17 @@ LLM call is slow (5-30s) and the value drops off fast.
 
 - subprocess invocations use `spawn(cmd, args, { shell: false })` with
   a hard-coded allowlist of binaries. no string interpolation into
-  shell.
+  shell. the allowlist lives in `lib/build/runner.mjs` and is
+  consulted before any `spawn` call.
 - the c++ emitter uses `JSON.stringify` for all user strings, which
   escapes `\\`, `"`, and control characters correctly. there's no
   path where user text ends up unescaped in a c++ token.
 - the dep resolver's reverse index is case-insensitive substring
   match; the LLM fallback is gated on a curated allowlist of vcpkg
-  ports. the LLM cannot suggest `curl | sh` as a "library."
+  ports defined in `lib/deps/library-map.json`. the LLM cannot
+  suggest a port outside the allowlist, and the resolver drops
+  anything it returns that isn't in the map (see
+  `tests/integration/resolver-allowlist.test.mjs`).
 - the `run` binary allowlist is checked before spawn, not after. if
   someone passes a custom binary, it gets rejected with a clear
   error before any process is started.

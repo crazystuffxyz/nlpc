@@ -8,14 +8,13 @@ import { resolve, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { parseStructured } from '../../lib/parser/structured.mjs';
 import { buildIR } from '../../lib/ir/builder.mjs';
-import { setReqFmt, emitCpp } from '../../lib/codegen/emit.mjs';
+import { emitCpp } from '../../lib/codegen/emit.mjs';
 import { emitProject } from '../../lib/codegen/cmake.mjs';
 
 test('greeter.nlp produces a compilable project (offline)', () => {
   const src = `Create a console application.\n\nRequire the fmt library.\n\nMake a function called greet that takes a person's name and returns a string.\n\nWhen the program starts:\n    ask the user for their name\n    print the greeting\n`;
   const { blocks, prose } = parseStructured(src);
   const ir = buildIR(blocks, prose, 'greeter');
-  setReqFmt(true);
   const cpp = emitCpp(ir);
   const proj = emitProject(ir, 'greeter');
   assert.match(cpp, /int main\(\)/);
@@ -36,6 +35,21 @@ test('rest-server.nlp produces http server scaffold', () => {
   assert.match(proj.cmake, /cpp-httplib/);
   const deps = JSON.parse(proj.vcpkg).dependencies;
   assert.ok(deps.includes('cpp-httplib'));
+});
+
+test('rest server reads PORT env var with 8080 fallback', () => {
+  // issue 7: hardcoded 8080 -> std::getenv("PORT") with 8080 default.
+  // paas hosts (heroku, fly, railway) inject PORT; local dev gets the default.
+  const src = `Application:\n    type: REST API\n\nRequire cpp-httplib.\n\nGET /health`;
+  const { blocks, prose } = parseStructured(src);
+  const ir = buildIR(blocks, prose, 'envport');
+  const cpp = emitCpp(ir);
+  assert.match(cpp, /std::getenv\("PORT"\)/);
+  assert.match(cpp, /std::atoi/);
+  // fallback literal must still be present
+  assert.match(cpp, /: 8080/);
+  // must NOT contain the old hardcoded listen call
+  assert.equal(/svr\.listen\("0\.0\.0\.0", 8080\)/.test(cpp), false);
 });
 
 test('writing project to a temp dir produces a complete set of files', () => {

@@ -109,8 +109,6 @@ test('emitCpp produces valid c++ for hello world', () => {
 test('emitCpp includes fmt header and links to fmt when fmt required', async () => {
   const r = parseStructured(`Require the fmt library.\nWhen the program starts:\n    print Hi`);
   const ir = buildIR(r.blocks, r.prose, 'fmtapp');
-  const { setReqFmt } = await import('../../lib/codegen/emit.mjs');
-  setReqFmt(true);
   const cpp = emitCpp(ir);
   assert.match(cpp, /#include <fmt\/core\.h>/);
   // we don't actually use fmt::print (v12 ABI issues) - just include the header

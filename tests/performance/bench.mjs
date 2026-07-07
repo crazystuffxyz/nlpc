@@ -2,7 +2,7 @@
 import { performance } from 'node:perf_hooks';
 import { parseStructured } from '../../lib/parser/structured.mjs';
 import { buildIR } from '../../lib/ir/builder.mjs';
-import { emitCpp, setReqFmt } from '../../lib/codegen/emit.mjs';
+import { emitCpp } from '../../lib/codegen/emit.mjs';
 import { emitProject } from '../../lib/codegen/cmake.mjs';
 
 function genNLP(n) {
@@ -23,7 +23,6 @@ async function bench() {
   const t = performance.now();
   const { blocks, prose } = parseStructured(big);
   const ir = buildIR(blocks, prose, 'bench');
-  setReqFmt(true);
   const cpp = emitCpp(ir);
   const proj = emitProject(ir, 'bench');
   const dt = performance.now() - t;
