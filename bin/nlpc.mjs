@@ -9,7 +9,7 @@ import { loadConfig } from '../lib/config.mjs';
 import { setup } from '../lib/setup.mjs';
 import { buildProject, loadProject } from '../lib/project.mjs';
 import { register } from '../lib/register.mjs';
-import { checkForUpdate } from '../lib/update.mjs';
+import { checkForUpdate, checkForUpdateCached } from '../lib/update.mjs';
 import { spawn as spawnChild } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -151,7 +151,7 @@ program
   .command('update')
   .description('check for a newer nlpc release')
   .action(async () => {
-    const r = await checkForUpdate();
+    const r = await checkForUpdateCached();
     if (!r.ok) { console.log('could not check:', r.reason); process.exit(1); }
     if (r.upToDate) { console.log(`up to date (${r.current})`); return; }
     console.log(`update available: ${r.current} -> ${r.latest}`);
@@ -187,7 +187,10 @@ program.parseAsync(process.argv).catch(e => {
 const updateCheckCmds = new Set(['compile', 'run', 'build', 'watch']);
 const invoked = process.argv.slice(2).find(a => !a.startsWith('-'));
 if (invoked && updateCheckCmds.has(invoked)) {
-  checkForUpdate().then(r => {
+  // bug #20: the trailing check shared its in-flight promise with
+  // explicit checkForUpdateCached() calls so the same process issues
+  // one HTTP fetch, not two.
+  checkForUpdateCached().then(r => {
     if (r?.ok && !r.upToDate) {
       console.error(chalk.yellow(`\nnlpc ${r.latest} available (you have ${r.current}). run: npm install -g crazystuffxyz/nlpc`));
     }
