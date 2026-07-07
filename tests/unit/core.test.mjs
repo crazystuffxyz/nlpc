@@ -291,6 +291,30 @@ test('return with unary minus passes through as c++ expression', () => {
   assert.doesNotMatch(cpp, /return "-value";/);
 });
 
+test('return with leading single quote is re-quoted (illegal c++)', () => {
+  // bug: `return 'Hello ' + name` used to pass through as a c++
+  // expression, but a single quote in c++ starts a char literal, not
+  // a string. multi-char char literals like 'Hello ' are illegal.
+  // the emitter now re-quotes any value starting with a single quote.
+  const src = "Create a console application.\nMake a function called greet that takes a name and returns a string:\n    return 'Hello ' + name\n";
+  const r = parseStructured(src);
+  const ir = buildIR(r.blocks, r.prose, 'f');
+  const cpp = emitCpp(ir);
+  assert.doesNotMatch(cpp, /return 'Hello '/);
+  assert.match(cpp, /return "'Hello ' \+ name";/);
+});
+
+test('return with double-quoted string + identifier passes through', () => {
+  // bug regression: a leading double-quoted string literal at the
+  // start of a c++ concat expression (`"Hello " + name`) is legal
+  // c++ and should pass through. we only block leading single quote.
+  const src = 'Create a console application.\nMake a function called greet that takes a name and returns a string:\n    return "Hello " + name\n';
+  const r = parseStructured(src);
+  const ir = buildIR(r.blocks, r.prose, 'f');
+  const cpp = emitCpp(ir);
+  assert.match(cpp, /return "Hello " \+ name;/);
+});
+
 test('ask noun-phrase uses last word as variable name', () => {
   // bug: `ask the user for their name` used to make a `their_name`
   // variable (slug of the whole phrase) and `ask for age` made
