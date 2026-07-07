@@ -552,3 +552,19 @@ test('PATCH /path is parsed and accepted by the schema (was: validator rejected 
   // the cli method for PATCH is PascalCase Patch
   assert.match(cpp, /cli\.Patch\("\/api\/v1"/);
 });
+
+test('for each over [1,2,3] converts to c++ {1,2,3} brace-list', async () => {
+  // bug: `for each n in [1,2,3,4,5]:` used to emit
+  //   for (auto& n : "[1,2,3,4,5]") { ... }
+  // because rhsFor treated the bracketed value as a string literal.
+  // c++ doesn't accept `[1,2,3]` as an initializer list — only
+  // `{1,2,3}` works — so emit a translation in the for-stmt path.
+  const { slug: _slug } = await import('../../lib/runtime/slug.mjs');
+  void _slug;
+  const src = 'Create a console application.\nWhen the program starts:\n    for each n in [1,2,3,4,5]:\n        print n\n';
+  const r = parseStructured(src);
+  const ir = buildIR(r.blocks, r.prose, 'p');
+  const cpp = emitCpp(ir);
+  assert.match(cpp, /for \(auto& n : \{1,2,3,4,5\}\)/);
+  assert.doesNotMatch(cpp, /for \(auto& n : "\[/);
+});
