@@ -126,6 +126,20 @@ test('emitCpp handles http server for rest kind', () => {
   assert.match(cpp, /svr\.Get\("\/hello"/);
 });
 
+test('emitCpp: http_route stmt honors method (PascalCase)', () => {
+  // bug: explicit `http_route` stmts used to hardcode `svr.get` (lowercase)
+  // regardless of the method field. cpp-httplib's Server has no lowercase
+  // methods, so this was a compile error for POST/PUT/DELETE routes.
+  const r = parseStructured('Application:\n    type: REST API\n\nPOST /users\nPUT /users/1\nDELETE /users/1');
+  const ir = buildIR(r.blocks, r.prose, 'api');
+  const cpp = emitCpp(ir);
+  assert.match(cpp, /svr\.Post\(\"\/users\"/);
+  assert.match(cpp, /svr\.Put\(\"\/users\/1\"/);
+  assert.match(cpp, /svr\.Delete\(\"\/users\/1\"/);
+  // no lowercase method calls anywhere
+  assert.doesNotMatch(cpp, /svr\.(get|post|put|delete|patch)\(/);
+});
+
 test('emitProject produces CMakeLists with find_package for known deps', () => {
   const r = parseStructured('Require the fmt library.\nRequire the JSON parser library.');
   const ir = buildIR(r.blocks, r.prose, 'demo');
