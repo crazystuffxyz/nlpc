@@ -1,0 +1,17 @@
+// STRESS 12: variable shadowing + redeclaration patterns
+Create a console application.
+
+Make a function called inc(int x) that returns an int:
+    set x = x + 1
+    return x
+
+When the program starts:
+    set counter = 0
+    set counter = counter + 1
+    set counter = counter + 1
+    set counter = counter + 1
+    print counter
+    call inc(10)
+    set msg = "before"
+    set msg = "after"
+    print msg

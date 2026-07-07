@@ -1,0 +1,16 @@
+// STRESS 11: edge cases in function bodies
+// edges: function inside function, calling from main with many args,
+//        function returning early, function with no body
+Create a console application.
+
+Make a function called outer(int x) that returns an int:
+    set y = x * 2
+    return y
+
+Make a function called silent() that returns an int.
+
+When the program starts:
+    call outer(5)
+    call silent
+    call outer(10)
+    print "done"

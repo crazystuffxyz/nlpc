@@ -618,3 +618,21 @@ test('ask: variable name is in knownIdents so print X works (was: printed "X" st
   assert.match(cpp, /std::cout << name << std::endl;/);
   assert.doesNotMatch(cpp, /std::cout << "name" << std::endl;/);
 });
+
+test('log without spdlog requirement compiles (was: spdlog::info undefined ref)', () => {
+  // bug: `log info foo` used to emit `spdlog::info("foo")` which
+  // requires the user to also `Require: spdlog`. a stray `log` in
+  // user code without a Require produced a build that linked to a
+  // missing spdlog library. fall back to std::clog so logs always
+  // compile, even when spdlog isn't a dep.
+  const src = 'Create a console application.\nWhen the program starts:\n    log info started\n    log warn something\n    log error bad\n';
+  const r = parseStructured(src);
+  const ir = buildIR(r.blocks, r.prose, 'p');
+  const cpp = emitCpp(ir);
+  // no spdlog include, no spdlog:: call
+  assert.doesNotMatch(cpp, /spdlog/);
+  // log lines go to std::clog with the level tag
+  assert.match(cpp, /std::clog << "\[" << "info" << "\] " << "started"/);
+  assert.match(cpp, /std::clog << "\[" << "warn" << "\] " << "something"/);
+  assert.match(cpp, /std::clog << "\[" << "error" << "\] " << "bad"/);
+});
