@@ -161,3 +161,13 @@ test('top-level for each captures indented body (bug #13)', () => {
   assert.match(cpp, /std::cout << item/);
   assert.match(cpp, /std::cout << "done"/);
 });
+
+test('http_serve honors numeric port (bug: silent 8080 fallback)', () => {
+  // the user wrote `serve on port 9090.` and the emitter used to drop
+  // the port because isIdent rejects digit-leading strings. accept a
+  // plain integer literal too.
+  const r = parseStructured('Create a console application.\nserve on port 9090.\n');
+  const ir = buildIR(r.blocks, r.prose, 'srv');
+  const cpp = emitCpp(ir);
+  assert.match(cpp, /svr\.listen\("0\.0\.0\.0", 9090\)/);
+});
