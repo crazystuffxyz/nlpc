@@ -1,6 +1,6 @@
 {
   "name": "nlpc",
-  "version": "0.2.1",
+  "version": "1.0.0",
   "description": "natural-language programming language compiler - english in, runnable c++ out",
   "type": "module",
   "bin": {
