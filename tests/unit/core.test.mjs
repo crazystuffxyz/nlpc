@@ -171,3 +171,30 @@ test('http_serve honors numeric port (bug: silent 8080 fallback)', () => {
   const cpp = emitCpp(ir);
   assert.match(cpp, /svr\.listen\("0\.0\.0\.0", 9090\)/);
 });
+
+test('file_write with bare variable emits c++ identifier (bug: string-literal fallback)', () => {
+  // the user wrote `file_write out.txt with msg` where msg is a
+  // variable. cppLiteral used to stringify the bare token to a
+  // quoted literal "msg", losing the variable reference.
+  const src = 'Create a console application.\nWhen the program starts:\n    set msg = hello\n    file_write out.txt with msg\n';
+  const r = parseStructured(src);
+  const ir = buildIR(r.blocks, r.prose, 'f');
+  const cpp = emitCpp(ir);
+  // should reference the variable, not the string literal
+  assert.match(cpp, /_nlpc_out << msg;/);
+  assert.doesNotMatch(cpp, /_nlpc_out << "msg";/);
+});
+
+test('return with leading string literal passes through as c++ expression', () => {
+  // bug: `return "Hello " + name` (concatenation) used to re-quote the
+  // whole thing as a string literal because EXPR_RE rejected values
+  // starting with a quote. the function returned the literal text
+  // `"Hello " + name` instead of the concatenation.
+  const src = 'Create a console application.\nMake a function called greet that takes a name and returns a string:\n    return "Hello " + name\n';
+  const r = parseStructured(src);
+  const ir = buildIR(r.blocks, r.prose, 'g');
+  const cpp = emitCpp(ir);
+  // should be a c++ expression, not a quoted literal of the whole thing
+  assert.match(cpp, /return "Hello " \+ name;/);
+  assert.doesNotMatch(cpp, /return "\\"Hello \\" \+ name";/);
+});
