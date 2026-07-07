@@ -227,6 +227,20 @@ test('print multi-word with no operator emits string literal', () => {
   assert.doesNotMatch(cpp, /std::cout << hello world/);
 });
 
+test('print Hello, world! emits a quoted c++ string', () => {
+  // bug: `print Hello, world!` used to pass through as a c++
+  // expression because the hasOp regex included `,` and `!`. the
+  // output was `std::cout << Hello, world! << ...` which is a
+  // c++ syntax error (comma is the comma operator, `!` is unary
+  // not). prose containing `,` or `!` should be a string literal.
+  const src = 'Create a console application.\nWhen the program starts:\n    print Hello, world!\n';
+  const r = parseStructured(src);
+  const ir = buildIR(r.blocks, r.prose, 'p');
+  const cpp = emitCpp(ir);
+  assert.match(cpp, /std::cout << "Hello, world!"/);
+  assert.doesNotMatch(cpp, /std::cout << Hello,/);
+});
+
 test('for each in main with colon strips colon from source', () => {
   // bug: `for each item in items:` inside main used to capture the
   // trailing colon as part of the source string, producing
@@ -303,6 +317,19 @@ test('return with unary minus passes through as c++ expression', () => {
   const cpp = emitCpp(ir);
   assert.match(cpp, /return -value;/);
   assert.doesNotMatch(cpp, /return "-value";/);
+});
+
+test('for each over initializer list passes through as c++ brace-list', () => {
+  // bug: `for each x in {1,2,3,4,5}` used to wrap the source in a
+  // string literal because EXPR_RE rejected a leading `{`. the fix
+  // accepts a leading `{` so the range-for emits a real c++
+  // initializer list (`for (auto& x : {1,2,3,4,5})`).
+  const src = 'Create a console application.\nMake a function called total() that returns an int:\n    set sum = 0\n    for each x in {1,2,3,4,5}:\n        set sum = sum + x\n    return sum\n';
+  const r = parseStructured(src);
+  const ir = buildIR(r.blocks, r.prose, 'f');
+  const cpp = emitCpp(ir);
+  assert.match(cpp, /for \(auto& x : \{1,2,3,4,5\}\)/);
+  assert.doesNotMatch(cpp, /for \(auto& x : "\{1,2,3,4,5\}"\)/);
 });
 
 test('return with leading single quote is re-quoted (illegal c++)', () => {
