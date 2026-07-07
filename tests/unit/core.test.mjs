@@ -491,3 +491,48 @@ test('stripRawStmts recurses into nested if/for bodies', () => {
   assert.equal(ir.behaviors[0].body[0].body.length, 1);
   assert.equal(ir.behaviors[0].body[0].body[0].kind, 'print');
 });
+
+test('slug renames c++ reserved words to avoid parse errors', async () => {
+  // bug: `Make a function called int()` or `set class = 5` lowered to
+  // `int int() { ... }` / `auto class = 5;`, which c++ rejects because
+  // those are reserved words. slug() now appends `_n` to a fixed
+  // reserved-word list, so the c++ output compiles.
+  const { slug } = await import('../../lib/runtime/slug.mjs');
+  assert.equal(slug('int'), 'int_n');
+  assert.equal(slug('class'), 'class_n');
+  assert.equal(slug('double'), 'double_n');
+  assert.equal(slug('return'), 'return_n');
+  // non-reserved names pass through unchanged (modulo slug rules)
+  assert.equal(slug('foo'), 'foo');
+  assert.equal(slug('my_var'), 'my_var');
+});
+
+test('reserved function name compiles (was: int() rejected)', () => {
+  // the user wrote `Make a function called int() that returns an int`
+  // and called it. previously this hit a hard c++ parse error on
+  // `int int() { ... }`. now `int` is renamed to `int_n` and both
+  // the declaration and the call site agree.
+  const src = 'Create a console application.\nMake a function called int() that returns an int.\nWhen the program starts:\n    call int()\n';
+  const r = parseStructured(src);
+  const ir = buildIR(r.blocks, r.prose, 'p');
+  const cpp = emitCpp(ir);
+  assert.match(cpp, /int int_n\(\) \{/);
+  assert.match(cpp, /int_n\(\);/);
+  // c++ reserved keyword should NOT appear as a free-standing identifier
+  // before `(`, otherwise the compiler would choke.
+  assert.doesNotMatch(cpp, /(^|\s)int\s*\(\s*\)\s*\{/m);
+});
+
+test('reserved variable name compiles (was: set class = 5 rejected)', () => {
+  // the user wrote `set class = 5` which used to lower to
+  // `auto class = 5;` - a c++ parse error because `class` is reserved.
+  // `print class` separately is treated as printing the literal string
+  // "class" (no c++ operators in the print target) - we don't rewrite
+  // that to reference the variable, so just check the declaration.
+  const src = 'Create a console application.\nWhen the program starts:\n    set class = 5\n    print "class"\n';
+  const r = parseStructured(src);
+  const ir = buildIR(r.blocks, r.prose, 'p');
+  const cpp = emitCpp(ir);
+  assert.match(cpp, /auto class_n = 5/);
+  assert.doesNotMatch(cpp, /auto\s+class\s*=/);
+});
