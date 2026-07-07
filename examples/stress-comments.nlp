@@ -1,0 +1,18 @@
+// STRESS 8: comments + empty lines + duplicates
+// edges: leading/trailing comments, mixed indentation, multiple main blocks
+//        out-of-order declarations, return without value
+Create a console application.
+
+// This is a comment
+// That spans multiple lines
+// With deep thoughts
+
+Make a function called first() that returns a string:
+    return "first"
+
+When the program starts:
+    call first
+    print "---"
+    set unused = 999
+    print "after unused"
+    print "empty above is fine"

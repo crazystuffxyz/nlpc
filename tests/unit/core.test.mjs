@@ -602,3 +602,19 @@ test('set with string literal declares std::string, not const char* (was: concat
   // leftmost std::string operand, so the result type is std::string.
   assert.match(cpp, /auto combined = greeting \+ ", " \+ name \+ "!";/);
 });
+
+test('ask: variable name is in knownIdents so print X works (was: printed "X" string)', () => {
+  // bug: `ask the user for their name` declares a c++ variable
+  // named `name`, but the ask emit didn't add that name to
+  // knownIdents. a later `print name` then fell through cppRhs
+  // and was emitted as `std::cout << "name" << ...` (the literal
+  // string) instead of `std::cout << name << ...` (the variable).
+  const src = 'Create a console application.\nWhen the program starts:\n    ask the user for their name\n    print name\n';
+  const r = parseStructured(src);
+  const ir = buildIR(r.blocks, r.prose, 'p');
+  const cpp = emitCpp(ir);
+  assert.match(cpp, /std::string name;/);
+  // print name -> std::cout << name, not std::cout << "name"
+  assert.match(cpp, /std::cout << name << std::endl;/);
+  assert.doesNotMatch(cpp, /std::cout << "name" << std::endl;/);
+});

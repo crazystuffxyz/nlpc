@@ -1,0 +1,9 @@
+// STRESS 10: ask/input/print
+Create a console application.
+
+When the program starts:
+    ask the user for their name
+    ask for age
+    print "Hello world"
+    print name
+    print age
