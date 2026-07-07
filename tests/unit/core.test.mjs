@@ -198,3 +198,16 @@ test('return with leading string literal passes through as c++ expression', () =
   assert.match(cpp, /return "Hello " \+ name;/);
   assert.doesNotMatch(cpp, /return "\\"Hello \\" \+ name";/);
 });
+
+test('print multi-word with no operator emits string literal', () => {
+  // bug: `print hello world` (no quotes) used to pass through as
+  // a c++ expression and produced `std::cout << hello world << ...`
+  // which doesn't compile. treat multi-token values with no operator
+  // as a string literal.
+  const src = 'Create a console application.\nWhen the program starts:\n    print hello world\n';
+  const r = parseStructured(src);
+  const ir = buildIR(r.blocks, r.prose, 'p');
+  const cpp = emitCpp(ir);
+  assert.match(cpp, /std::cout << "hello world"/);
+  assert.doesNotMatch(cpp, /std::cout << hello world/);
+});
