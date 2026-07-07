@@ -1,0 +1,12 @@
+// STRESS 9: type mismatches
+// edges: int compared to string, missing function, undefined var
+Create a console application.
+
+When the program starts:
+    set n = 5
+    if n < "10":
+        print "wrong types"
+    if n == 5:
+        print "correct"
+    call does_not_exist(1, 2, 3)
+    print undefined_var

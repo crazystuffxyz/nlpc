@@ -297,12 +297,16 @@ test('for each in main with colon strips colon from source', () => {
   // `for (auto& item : "items:")`. the trailing-colon stripping was
   // only in the top-level handler; parseMainLine's inner regex needed
   // the same fix.
+  // (the for-stmt emit now wraps bare-word sources in
+  // std::string_view so the iteration is over chars, but the
+  // underlying source string still must not have the trailing
+  // colon — the assertion targets the rhs, not the wrapper.)
   const src = 'Create a console application.\nWhen the program starts:\n    for each item in items:\n        print item\n';
   const r = parseStructured(src);
   const ir = buildIR(r.blocks, r.prose, 'f');
   const cpp = emitCpp(ir);
-  assert.match(cpp, /for \(auto& item : "items"\)/);
-  assert.doesNotMatch(cpp, /for \(auto& item : "items:"\)/);
+  assert.match(cpp, /std::string_view\("items"\)/);
+  assert.doesNotMatch(cpp, /std::string_view\("items:"\)/);
 });
 
 test('for each in main captures indented body', () => {
@@ -314,7 +318,7 @@ test('for each in main captures indented body', () => {
   const r = parseStructured(src);
   const ir = buildIR(r.blocks, r.prose, 'f');
   const cpp = emitCpp(ir);
-  assert.match(cpp, /for \(auto& item : "items"\)/);
+  assert.match(cpp, /std::string_view\("items"\)/);
   assert.match(cpp, /std::cout << item/);
   assert.match(cpp, /std::cout << "again"/);
   // done is a sibling, not inside the for
@@ -635,4 +639,30 @@ test('log without spdlog requirement compiles (was: spdlog::info undefined ref)'
   assert.match(cpp, /std::clog << "\[" << "info" << "\] " << "started"/);
   assert.match(cpp, /std::clog << "\[" << "warn" << "\] " << "something"/);
   assert.match(cpp, /std::clog << "\[" << "error" << "\] " << "bad"/);
+});
+
+test('for each over a number source becomes a counted range loop', () => {
+  // bug: `for each i in 5` used to emit `for (auto& i : 5) { ... }`
+  // which is a c++ error — an int has no `begin`/`end`. translate a
+  // numeric source to a counted range-based for over a synthetic
+  // initializer list, so the loop runs N times.
+  const src = 'Create a console application.\nWhen the program starts:\n    for each i in 3:\n        print i\n';
+  const r = parseStructured(src);
+  const ir = buildIR(r.blocks, r.prose, 'p');
+  const cpp = emitCpp(ir);
+  assert.match(cpp, /for \(auto& i : \{0,0,0\}\)/);
+  assert.doesNotMatch(cpp, /for \(auto& i : 5\)/);
+});
+
+test('for each over a bare-word source becomes string_view iteration', () => {
+  // bug: `for each c in hello` used to emit
+  // `for (auto& c : "hello") {` (the parser didn't quote it but the
+  // emitter assumed it was a literal). that iterates over a
+  // `const char*`, which is a compile error in c++20. wrap the
+  // source in std::string_view so the iteration is over chars.
+  const src = 'Create a console application.\nWhen the program starts:\n    for each c in hello:\n        print c\n';
+  const r = parseStructured(src);
+  const ir = buildIR(r.blocks, r.prose, 'p');
+  const cpp = emitCpp(ir);
+  assert.match(cpp, /for \(auto& c : std::string_view\("hello"\)\)/);
 });

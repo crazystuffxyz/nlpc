@@ -1,0 +1,11 @@
+// STRESS 13: for each with various sources
+Create a console application.
+
+When the program starts:
+    for each i in 5:
+        print i
+    for each s in hello:
+        print s
+    set items = "x"
+    for each v in items:
+        print v
