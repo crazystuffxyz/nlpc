@@ -306,3 +306,19 @@ test('ask noun-phrase uses last word as variable name', () => {
   assert.doesNotMatch(cpp, /std::string for_age/);
   assert.doesNotMatch(cpp, /std::string favorite_color/);
 });
+
+test('function with no params compiles to no-arg signature', () => {
+  // bug: `takes nothing` used to be parsed as a parameter named
+  // "nothing" of type "void", producing `void noop(void nothing)`.
+  // 'nothing' (and 'no parameters', 'none', 'no', 'args', 'arguments')
+  // are filtered as stopwords so params stays empty.
+  const src = 'Create a console application.\nMake a function called noop that takes nothing and returns nothing.\n';
+  const r = parseStructured(src);
+  const fn = r.blocks.find(b => b.kind === 'function');
+  assert.deepEqual(fn.params, []);
+  assert.equal(fn.returns, 'nothing');
+  const ir = buildIR(r.blocks, r.prose, 'f');
+  const cpp = emitCpp(ir);
+  assert.match(cpp, /void noop\(\)/);
+  assert.doesNotMatch(cpp, /void noop\(void/);
+});
