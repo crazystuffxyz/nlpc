@@ -3,7 +3,9 @@ Create a console application.
 
 When the program starts:
     ask the user for directory path
-    ask the user for old extension
-    ask the user for new extension
-    for each file in directory
-        rename file replacing old extension with new extension
+    set old_ext = "txt"
+    set new_ext = "md"
+    set src = "input.txt"
+    set dst = "renamed.md"
+    rename src to dst
+    delete src

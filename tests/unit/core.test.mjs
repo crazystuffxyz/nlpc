@@ -241,6 +241,56 @@ test('print Hello, world! emits a quoted c++ string', () => {
   assert.doesNotMatch(cpp, /std::cout << Hello,/);
 });
 
+test('file_rename stmt emits std::filesystem::rename', () => {
+  // bug: rename was unhandled by the structured parser, so the
+  // file-renamer example was a hard parse error. added `rename X to Y`
+  // lowering to std::filesystem::rename.
+  const src = 'Create a console application.\nWhen the program starts:\n    rename "a.txt" to "b.txt"\n';
+  const r = parseStructured(src);
+  const ir = buildIR(r.blocks, r.prose, 'p');
+  const cpp = emitCpp(ir);
+  assert.match(cpp, /std::filesystem::rename\("a\.txt", "b\.txt"\)/);
+});
+
+test('file_delete stmt emits std::filesystem::remove', () => {
+  // bug: delete (file) was unhandled. added `delete PATH` lowering to
+  // std::filesystem::remove. use a path string that doesn't look like
+  // a HTTP DELETE so the http_delete parser doesn't match first.
+  const src = 'Create a console application.\nWhen the program starts:\n    delete "trash.txt"\n';
+  const r = parseStructured(src);
+  const ir = buildIR(r.blocks, r.prose, 'p');
+  const cpp = emitCpp(ir);
+  assert.match(cpp, /std::filesystem::remove\("trash\.txt"\)/);
+});
+
+test('file_delete with bare variable uses c++ identifier', () => {
+  // bug: `delete src` (where src was set to a string) used to be
+  // emitted as `std::filesystem::remove("src")` - the bare-token
+  // path was being stringified instead of resolving to the variable.
+  // the emitter now routes through rhsFor the same way file_write
+  // and file_rename do.
+  const src = 'Create a console application.\nWhen the program starts:\n    set src = "trash.txt"\n    delete src\n';
+  const r = parseStructured(src);
+  const ir = buildIR(r.blocks, r.prose, 'p');
+  const cpp = emitCpp(ir);
+  assert.match(cpp, /std::filesystem::remove\(src\);/);
+  assert.doesNotMatch(cpp, /std::filesystem::remove\("src"\)/);
+});
+
+test('HTTP verbs require leading slash so file_delete takes priority', () => {
+  // bug: the structured parser used to match `delete "trash.txt"`
+  // as an http_delete stmt because the http verb regex was
+  // case-insensitive and accepted any path. fix: http verbs only
+  // match when the path starts with `/` (matching real REST syntax).
+  // this way `delete src` lowers to file_delete, but DELETE /users
+  // still lowers to http_delete.
+  const r = parseStructured('Create a console application.\nWhen the program starts:\n    delete "trash.txt"\n');
+  const ir = buildIR(r.blocks, r.prose, 'p');
+  const stmt = ir.behaviors[0].body[0];
+  assert.equal(stmt.kind, 'file_delete');
+  assert.equal(stmt.path, 'trash.txt');
+});
+
 test('for each in main with colon strips colon from source', () => {
   // bug: `for each item in items:` inside main used to capture the
   // trailing colon as part of the source string, producing
