@@ -17,7 +17,8 @@ function sha256(path) {
 
 const args = process.argv.slice(2);
 const push = args.includes('--push');
-const tagArg = args[args.indexOf('--tag') + 1];
+const tagIdx = args.indexOf('--tag');
+const tagArg = tagIdx !== -1 ? args[tagIdx + 1] : null;
 const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
 const tag = tagArg ? (tagArg.startsWith('v') ? tagArg : `v${tagArg}`) : `v${pkg.version}`;
 
@@ -52,14 +53,22 @@ execSync(`git tag ${tag}`, { stdio: 'inherit' });
 execSync(`git push origin ${tag} --force`, { stdio: 'inherit' });
 
 // step 4: create the github release. we use the API directly (no `gh` CLI
-// assumed) via curl. token comes from GITHUB_TOKEN env or Windows cred mgr.
+// assumed) via fetch. token comes from GITHUB_TOKEN env or git's
+// credential manager (`git credential-manager get`).
 const token = process.env.GITHUB_TOKEN ||
-              (process.platform === 'win32'
-                ? execSync('powershell -NoProfile -Command "[Net.NetworkCredential]::new(\'\', (Get-Credential -Message \'github token\' -UserName \'x\').GetNetworkCredential().Password).Password"', { encoding: 'utf8' }).trim()
-                : '');
+              (() => {
+                try {
+                  const out = execSync(
+                    `printf 'protocol=https\\nhost=github.com\\n\\n' | git credential-manager get`,
+                    { encoding: 'utf8' }
+                  );
+                  const m = out.match(/^password=(.+)$/m);
+                  return m ? m[1].trim() : '';
+                } catch { return ''; }
+              })();
 
 if (!token) {
-  console.log('[release] no GITHUB_TOKEN env; skipping github release API. upload the tarball manually.');
+  console.log('[release] no GITHUB_TOKEN env and no github cred in GCM; skipping github release API. upload the tarball manually.');
   process.exit(0);
 }
 
