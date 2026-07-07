@@ -9,6 +9,8 @@ import { loadConfig } from '../lib/config.mjs';
 import { setup } from '../lib/setup.mjs';
 import { buildProject, loadProject } from '../lib/project.mjs';
 import { register } from '../lib/register.mjs';
+import { checkForUpdate } from '../lib/update.mjs';
+import { spawn as spawnChild } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -130,6 +132,29 @@ program
   });
 
 program
+  .command('add-to-path')
+  .description('add the nlpc bin dir to the user PATH (no truncation)')
+  .option('--target <dir>', 'where to put the binary', '')
+  .option('--yes', 'skip confirmation')
+  .action(async (o) => {
+    const args = ['scripts/install.mjs', 'add-to-path', ...(o.target ? ['--target', o.target] : []), ...(o.yes ? ['--yes'] : [])];
+    const child = spawnChild(process.execPath, args, { stdio: 'inherit' });
+    child.on('exit', c => process.exit(c || 0));
+  });
+
+program
+  .command('update')
+  .description('check for a newer nlpc release')
+  .action(async () => {
+    const r = await checkForUpdate();
+    if (!r.ok) { console.log('could not check:', r.reason); process.exit(1); }
+    if (r.upToDate) { console.log(`up to date (${r.current})`); return; }
+    console.log(`update available: ${r.current} -> ${r.latest}`);
+    console.log(`run: npm install -g crazystuffxyz/nlpc`);
+    console.log(`or:  ${r.url}`);
+  });
+
+program
   .command('watch')
   .argument('<file>', 'input .nlp file')
   .option('-o, --out <dir>', 'output directory', 'build-out')
@@ -148,3 +173,11 @@ program.parseAsync(process.argv).catch(e => {
   console.error(chalk.red('cli error'), e);
   process.exit(1);
 });
+
+// non-blocking version check. runs at most once per CLI invocation.
+// failures are silent (don't pollute output for offline users).
+checkForUpdate().then(r => {
+  if (r?.ok && !r.upToDate) {
+    console.error(chalk.yellow(`\nnlpc ${r.latest} available (you have ${r.current}). run: npm install -g crazystuffxyz/nlpc`));
+  }
+}).catch(() => {});

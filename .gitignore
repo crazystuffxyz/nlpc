@@ -1,5 +1,6 @@
 node_modules/
 build-out/
+dist/
 *.log
 .DS_Store
 .env
@@ -8,3 +9,4 @@ build-out/
 .idea/
 *.swp
 *.swo
+*.tar.gz

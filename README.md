@@ -29,9 +29,23 @@ that.
 
 ## install
 
+the published package lives on github, not the public npm registry:
+
 ```
-git clone <this repo>
-cd Something
+npm install -g crazystuffxyz/nlpc
+```
+
+or for a single-binary install that doesn't need node on your path,
+grab the latest release from
+[github releases](https://github.com/crazystuffxyz/nlpc/releases).
+extract the tarball and run `./install.sh` (mac/linux) or
+`install.cmd` (windows).
+
+if you want to hack on it:
+
+```
+git clone https://github.com/crazystuffxyz/nlpc.git
+cd nlpc
 npm install
 ```
 
@@ -55,6 +69,11 @@ nlpc compile program.nlp -o ./out           # custom out dir
 nlpc compile program.nlp --keep-build       # don't wipe build dir
 nlpc watch path/to/program.nlp              # rebuild + rerun on save
 nlpc doctor                                 # check toolchain
+nlpc setup                                  # interactive tool installer
+nlpc build ./mydir                          # build all entries in a project
+nlpc register                               # bind .nlp to nlpc on this OS
+nlpc add-to-path                            # add nlpc to user PATH
+nlpc update                                 # check for a newer version
 ```
 
 `watch` recompiles and reruns the binary every time the .nlp file is
@@ -176,6 +195,28 @@ npm run test:perf         # 200-line .nlp under 2s budget
 
 32 tests covering the parser, IR builder, dep resolver, codegen, cmake
 emitter, and the runner's allowlist/injection defenses.
+
+## building a standalone binary
+
+`npm install -g crazystuffxyz/nlpc` works on any machine with node.
+for a single-binary distribution that doesn't need node installed:
+
+```
+npm install -g esbuild pkg
+npm run build:binary          # builds the host target (~37MB)
+NLPC_BUILD_ALL=1 npm run build:binary   # all 5 OS/arch targets
+```
+
+artifacts land in `dist/nlpc-<os>-<arch>[.exe]`. the build script uses
+`esbuild` to inline all imports into one `dist/nlpc.bundle.cjs`, then
+`pkg` to wrap that in a node18 runtime. `pkg` downloads the node
+binaries on first run via `pkg-fetch`.
+
+the install script (`scripts/install.mjs`, exposed as `nlpc add-to-path`)
+works on win/mac/linux from a single node.js source — no `.cmd`, no
+`.sh`, no `setx`. PATH edits use PowerShell
+`SetEnvironmentVariable` on windows and `~/.bashrc`/`~/.zshrc` on
+mac/linux.
 
 ## license
 
