@@ -1,0 +1,14 @@
+// STRESS 15: weird edge cases for parser
+// edges: blank lines, leading whitespace, mixed cases
+Create a console application.
+
+When the program starts:
+
+
+
+    set x = 5
+
+
+
+    print x
+    print "trailing whitespace handled"
