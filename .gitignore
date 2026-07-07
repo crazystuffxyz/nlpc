@@ -1,6 +1,8 @@
 node_modules/
 build-out/
 dist/
+build-stress/
+*.tgz
 *.log
 .DS_Store
 .env

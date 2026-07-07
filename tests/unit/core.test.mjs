@@ -121,15 +121,12 @@ test('emitCpp handles http server for rest kind', () => {
   const ir = buildIR(r.blocks, r.prose, 'api');
   const cpp = emitCpp(ir);
   assert.match(cpp, /httplib::Server/);
-  // cpp-httplib exposes PascalCase methods (Get, Post, Put, Delete, Patch).
-  // the emitter used to call svr.get(...) lowercase which is a compile error.
+  // cpp-httplib uses PascalCase methods (Get, Post, Put, Delete, Patch)
   assert.match(cpp, /svr\.Get\("\/hello"/);
 });
 
 test('emitCpp: http_route stmt honors method (PascalCase)', () => {
-  // bug: explicit `http_route` stmts used to hardcode `svr.get` (lowercase)
-  // regardless of the method field. cpp-httplib's Server has no lowercase
-  // methods, so this was a compile error for POST/PUT/DELETE routes.
+  // bug: http_route hardcoded `svr.get` (lowercase) regardless of method field.
   const r = parseStructured('Application:\n    type: REST API\n\nPOST /users\nPUT /users/1\nDELETE /users/1');
   const ir = buildIR(r.blocks, r.prose, 'api');
   const cpp = emitCpp(ir);
@@ -178,9 +175,7 @@ test('top-level for each captures indented body (bug #13)', () => {
 });
 
 test('http_serve honors numeric port (bug: silent 8080 fallback)', () => {
-  // the user wrote `serve on port 9090.` and the emitter used to drop
-  // the port because isIdent rejects digit-leading strings. accept a
-  // plain integer literal too.
+  // bug: `serve on port 9090` dropped the port because isIdent rejects digit-leading strings.
   const r = parseStructured('Create a console application.\nserve on port 9090.\n');
   const ir = buildIR(r.blocks, r.prose, 'srv');
   const cpp = emitCpp(ir);
@@ -188,23 +183,18 @@ test('http_serve honors numeric port (bug: silent 8080 fallback)', () => {
 });
 
 test('file_write with bare variable emits c++ identifier (bug: string-literal fallback)', () => {
-  // the user wrote `file_write out.txt with msg` where msg is a
-  // variable. cppLiteral used to stringify the bare token to a
-  // quoted literal "msg", losing the variable reference.
+  // bug: cppLiteral stringified `msg` to "msg" instead of the variable.
   const src = 'Create a console application.\nWhen the program starts:\n    set msg = hello\n    file_write out.txt with msg\n';
   const r = parseStructured(src);
   const ir = buildIR(r.blocks, r.prose, 'f');
   const cpp = emitCpp(ir);
-  // should reference the variable, not the string literal
+  // variable, not string literal
   assert.match(cpp, /_nlpc_out << msg;/);
   assert.doesNotMatch(cpp, /_nlpc_out << "msg";/);
 });
 
 test('return with leading string literal passes through as c++ expression', () => {
-  // bug: `return "Hello " + name` (concatenation) used to re-quote the
-  // whole thing as a string literal because EXPR_RE rejected values
-  // starting with a quote. the function returned the literal text
-  // `"Hello " + name` instead of the concatenation.
+  // bug: `return "Hello " + name` was re-quoted because EXPR_RE rejected a leading quote.
   const src = 'Create a console application.\nMake a function called greet that takes a name and returns a string:\n    return "Hello " + name\n';
   const r = parseStructured(src);
   const ir = buildIR(r.blocks, r.prose, 'g');
@@ -215,10 +205,7 @@ test('return with leading string literal passes through as c++ expression', () =
 });
 
 test('print multi-word with no operator emits string literal', () => {
-  // bug: `print hello world` (no quotes) used to pass through as
-  // a c++ expression and produced `std::cout << hello world << ...`
-  // which doesn't compile. treat multi-token values with no operator
-  // as a string literal.
+  // bug: `print hello world` (no quotes) emitted as `cout << hello world << ...`.
   const src = 'Create a console application.\nWhen the program starts:\n    print hello world\n';
   const r = parseStructured(src);
   const ir = buildIR(r.blocks, r.prose, 'p');
@@ -228,11 +215,7 @@ test('print multi-word with no operator emits string literal', () => {
 });
 
 test('print Hello, world! emits a quoted c++ string', () => {
-  // bug: `print Hello, world!` used to pass through as a c++
-  // expression because the hasOp regex included `,` and `!`. the
-  // output was `std::cout << Hello, world! << ...` which is a
-  // c++ syntax error (comma is the comma operator, `!` is unary
-  // not). prose containing `,` or `!` should be a string literal.
+  // bug: hasOp included `,` and `!`, so prose with those chars fell through to expression emit.
   const src = 'Create a console application.\nWhen the program starts:\n    print Hello, world!\n';
   const r = parseStructured(src);
   const ir = buildIR(r.blocks, r.prose, 'p');
@@ -242,9 +225,7 @@ test('print Hello, world! emits a quoted c++ string', () => {
 });
 
 test('file_rename stmt emits std::filesystem::rename', () => {
-  // bug: rename was unhandled by the structured parser, so the
-  // file-renamer example was a hard parse error. added `rename X to Y`
-  // lowering to std::filesystem::rename.
+  // bug: rename was unhandled. add `rename X to Y`.
   const src = 'Create a console application.\nWhen the program starts:\n    rename "a.txt" to "b.txt"\n';
   const r = parseStructured(src);
   const ir = buildIR(r.blocks, r.prose, 'p');
@@ -253,9 +234,7 @@ test('file_rename stmt emits std::filesystem::rename', () => {
 });
 
 test('file_delete stmt emits std::filesystem::remove', () => {
-  // bug: delete (file) was unhandled. added `delete PATH` lowering to
-  // std::filesystem::remove. use a path string that doesn't look like
-  // a HTTP DELETE so the http_delete parser doesn't match first.
+  // bug: delete (file) was unhandled. use a path string that doesn't look like HTTP DELETE.
   const src = 'Create a console application.\nWhen the program starts:\n    delete "trash.txt"\n';
   const r = parseStructured(src);
   const ir = buildIR(r.blocks, r.prose, 'p');
@@ -264,11 +243,7 @@ test('file_delete stmt emits std::filesystem::remove', () => {
 });
 
 test('file_delete with bare variable uses c++ identifier', () => {
-  // bug: `delete src` (where src was set to a string) used to be
-  // emitted as `std::filesystem::remove("src")` - the bare-token
-  // path was being stringified instead of resolving to the variable.
-  // the emitter now routes through rhsFor the same way file_write
-  // and file_rename do.
+  // bug: `delete src` emitted remove("src") - the bare token was stringified.
   const src = 'Create a console application.\nWhen the program starts:\n    set src = "trash.txt"\n    delete src\n';
   const r = parseStructured(src);
   const ir = buildIR(r.blocks, r.prose, 'p');
@@ -278,12 +253,7 @@ test('file_delete with bare variable uses c++ identifier', () => {
 });
 
 test('HTTP verbs require leading slash so file_delete takes priority', () => {
-  // bug: the structured parser used to match `delete "trash.txt"`
-  // as an http_delete stmt because the http verb regex was
-  // case-insensitive and accepted any path. fix: http verbs only
-  // match when the path starts with `/` (matching real REST syntax).
-  // this way `delete src` lowers to file_delete, but DELETE /users
-  // still lowers to http_delete.
+  // bug: http verb regex was case-insensitive and matched any path. require leading `/`.
   const r = parseStructured('Create a console application.\nWhen the program starts:\n    delete "trash.txt"\n');
   const ir = buildIR(r.blocks, r.prose, 'p');
   const stmt = ir.behaviors[0].body[0];
@@ -292,15 +262,7 @@ test('HTTP verbs require leading slash so file_delete takes priority', () => {
 });
 
 test('for each in main with colon strips colon from source', () => {
-  // bug: `for each item in items:` inside main used to capture the
-  // trailing colon as part of the source string, producing
-  // `for (auto& item : "items:")`. the trailing-colon stripping was
-  // only in the top-level handler; parseMainLine's inner regex needed
-  // the same fix.
-  // (the for-stmt emit now wraps bare-word sources in
-  // std::string_view so the iteration is over chars, but the
-  // underlying source string still must not have the trailing
-  // colon — the assertion targets the rhs, not the wrapper.)
+  // bug: trailing `:` on `for each i in items:` leaked into the source string.
   const src = 'Create a console application.\nWhen the program starts:\n    for each item in items:\n        print item\n';
   const r = parseStructured(src);
   const ir = buildIR(r.blocks, r.prose, 'f');
@@ -310,10 +272,7 @@ test('for each in main with colon strips colon from source', () => {
 });
 
 test('for each in main captures indented body', () => {
-  // bug: indented children of an inner `for` block were being lost
-  // because parseBodyLines's child-gather only ran for the very first
-  // pass (the main-block children) and the for stmt returned without
-  // its body populated.
+  // bug: child-gather only ran for the main-block first pass. inner `for` returned without its body.
   const src = 'Create a console application.\nWhen the program starts:\n    for each item in items\n        print item\n        print again\n    print done\n';
   const r = parseStructured(src);
   const ir = buildIR(r.blocks, r.prose, 'f');
@@ -331,10 +290,7 @@ test('for each in main captures indented body', () => {
 });
 
 test('paren-form params accept rust-style name: type', () => {
-  // bug: `(a: int, b: int)` used to be parsed as if the type was the
-  // name (`int`) and the name was the type (`a:`). the parser now
-  // detects the trailing `:` on the first segment and uses rust-style
-  // order.
+  // bug: `(a: int, b: int)` was parsed as type=int, name=a. detect leading-segment `:`.
   const src = 'Create a console application.\nMake a function called add(a: int, b: int) -> int:\n    return a + b\n';
   const r = parseStructured(src);
   const fn = r.blocks.find(b => b.kind === 'function');
@@ -350,8 +306,7 @@ test('paren-form params accept rust-style name: type', () => {
 });
 
 test('arrow-style return type is recognized', () => {
-  // bug: `-> int` was not recognized; returns was null and the emitter
-  // defaulted to std::string. the parser now falls back to /-> type/.
+  // bug: `-> int` was unrecognized; returns was null. fall back to /-> type/.
   const src = 'Create a console application.\nMake a function called sq(x: int) -> int:\n    return x * x\n';
   const r = parseStructured(src);
   const fn = r.blocks.find(b => b.kind === 'function');
@@ -362,9 +317,7 @@ test('arrow-style return type is recognized', () => {
 });
 
 test('return with unary minus passes through as c++ expression', () => {
-  // bug: `return -value` used to re-quote as "-value" because EXPR_RE
-  // required the first char to be letter/digit/quote. allow up to two
-  // leading `-` so negative literals and unary minus work.
+  // bug: `return -value` re-quoted as "-value" because EXPR_RE rejected leading `-`.
   const src = 'Create a console application.\nMake a function called neg that takes a value and returns an int:\n    return -value\n';
   const r = parseStructured(src);
   const ir = buildIR(r.blocks, r.prose, 'f');
@@ -374,10 +327,7 @@ test('return with unary minus passes through as c++ expression', () => {
 });
 
 test('for each over initializer list passes through as c++ brace-list', () => {
-  // bug: `for each x in {1,2,3,4,5}` used to wrap the source in a
-  // string literal because EXPR_RE rejected a leading `{`. the fix
-  // accepts a leading `{` so the range-for emits a real c++
-  // initializer list (`for (auto& x : {1,2,3,4,5})`).
+  // bug: EXPR_RE rejected a leading `{` and stringified `{1,2,3,4,5}`.
   const src = 'Create a console application.\nMake a function called total() that returns an int:\n    set sum = 0\n    for each x in {1,2,3,4,5}:\n        set sum = sum + x\n    return sum\n';
   const r = parseStructured(src);
   const ir = buildIR(r.blocks, r.prose, 'f');
@@ -390,10 +340,7 @@ test('for each over initializer list passes through as c++ brace-list', () => {
 });
 
 test('return with leading single quote is re-quoted (illegal c++)', () => {
-  // bug: `return 'Hello ' + name` used to pass through as a c++
-  // expression, but a single quote in c++ starts a char literal, not
-  // a string. multi-char char literals like 'Hello ' are illegal.
-  // the emitter now re-quotes any value starting with a single quote.
+  // bug: `return 'Hello '` is a multi-char c++ literal. re-quote any value starting with `'`.
   const src = "Create a console application.\nMake a function called greet that takes a name and returns a string:\n    return 'Hello ' + name\n";
   const r = parseStructured(src);
   const ir = buildIR(r.blocks, r.prose, 'f');
@@ -403,9 +350,7 @@ test('return with leading single quote is re-quoted (illegal c++)', () => {
 });
 
 test('return with double-quoted string + identifier passes through', () => {
-  // bug regression: a leading double-quoted string literal at the
-  // start of a c++ concat expression (`"Hello " + name`) is legal
-  // c++ and should pass through. we only block leading single quote.
+  // bug regression: leading `"..." + x` is legal c++ and must pass through.
   const src = 'Create a console application.\nMake a function called greet that takes a name and returns a string:\n    return "Hello " + name\n';
   const r = parseStructured(src);
   const ir = buildIR(r.blocks, r.prose, 'f');
@@ -414,10 +359,7 @@ test('return with double-quoted string + identifier passes through', () => {
 });
 
 test('ask noun-phrase uses last word as variable name', () => {
-  // bug: `ask the user for their name` used to make a `their_name`
-  // variable (slug of the whole phrase) and `ask for age` made
-  // `for_age`. the last word of the phrase is the noun and is what
-  // the user means.
+  // bug: `ask the user for their name` made a `their_name` var. use the last word.
   const src = 'Create a console application.\nWhen the program starts:\n    ask the user for their name\n    ask for age\n    ask favorite color\n';
   const r = parseStructured(src);
   const ir = buildIR(r.blocks, r.prose, 'p');
@@ -431,10 +373,7 @@ test('ask noun-phrase uses last word as variable name', () => {
 });
 
 test('function with no params compiles to no-arg signature', () => {
-  // bug: `takes nothing` used to be parsed as a parameter named
-  // "nothing" of type "void", producing `void noop(void nothing)`.
-  // 'nothing' (and 'no parameters', 'none', 'no', 'args', 'arguments')
-  // are filtered as stopwords so params stays empty.
+  // bug: `takes nothing` parsed as a param named "nothing" of type "void". filter as stopword.
   const src = 'Create a console application.\nMake a function called noop that takes nothing and returns nothing.\n';
   const r = parseStructured(src);
   const fn = r.blocks.find(b => b.kind === 'function');
@@ -447,9 +386,7 @@ test('function with no params compiles to no-arg signature', () => {
 });
 
 test('stripRawStmts removes raw stmts from LLM-produced ir', () => {
-  // bug #14: a prompt-injection in .nlp prose can trick the LLM into
-  // writing `raw system("...")` to escape the sandbox. stripRawStmts
-  // walks behaviors and declaration bodies and removes every {kind:"raw"}.
+  // bug: prompt injection in .nlp prose can make the LLM emit raw system("...") to escape the sandbox.
   const ir = {
     program: { name: 'evil', kind: 'console' },
     requirements: [],
@@ -477,7 +414,7 @@ test('stripRawStmts removes raw stmts from LLM-produced ir', () => {
 });
 
 test('stripRawStmts recurses into nested if/for bodies', () => {
-  // a raw stmt nested inside an if body's body should also be stripped.
+  // raw stmts nested inside an if body's body must be stripped too.
   const ir = {
     program: { name: 'f', kind: 'console' },
     requirements: [],
@@ -500,10 +437,7 @@ test('stripRawStmts recurses into nested if/for bodies', () => {
 });
 
 test('slug renames c++ reserved words to avoid parse errors', async () => {
-  // bug: `Make a function called int()` or `set class = 5` lowered to
-  // `int int() { ... }` / `auto class = 5;`, which c++ rejects because
-  // those are reserved words. slug() now appends `_n` to a fixed
-  // reserved-word list, so the c++ output compiles.
+  // bug: `Make a function called int()` lowered to `int int() { ... }` and died.
   const { slug } = await import('../../lib/runtime/slug.mjs');
   assert.equal(slug('int'), 'int_n');
   assert.equal(slug('class'), 'class_n');
@@ -515,10 +449,7 @@ test('slug renames c++ reserved words to avoid parse errors', async () => {
 });
 
 test('reserved function name compiles (was: int() rejected)', () => {
-  // the user wrote `Make a function called int() that returns an int`
-  // and called it. previously this hit a hard c++ parse error on
-  // `int int() { ... }`. now `int` is renamed to `int_n` and both
-  // the declaration and the call site agree.
+  // bug: `int()` lowered to `int int() { ... }` - c++ parse error. rename to `int_n`.
   const src = 'Create a console application.\nMake a function called int() that returns an int.\nWhen the program starts:\n    call int()\n';
   const r = parseStructured(src);
   const ir = buildIR(r.blocks, r.prose, 'p');
@@ -531,11 +462,7 @@ test('reserved function name compiles (was: int() rejected)', () => {
 });
 
 test('reserved variable name compiles (was: set class = 5 rejected)', () => {
-  // the user wrote `set class = 5` which used to lower to
-  // `auto class = 5;` - a c++ parse error because `class` is reserved.
-  // `print class` separately is treated as printing the literal string
-  // "class" (no c++ operators in the print target) - we don't rewrite
-  // that to reference the variable, so just check the declaration.
+  // bug: `set class = 5` lowered to `auto class = 5;` - reserved word.
   const src = 'Create a console application.\nWhen the program starts:\n    set class = 5\n    print "class"\n';
   const r = parseStructured(src);
   const ir = buildIR(r.blocks, r.prose, 'p');
@@ -545,11 +472,7 @@ test('reserved variable name compiles (was: set class = 5 rejected)', () => {
 });
 
 test('PATCH /path is parsed and accepted by the schema (was: validator rejected http_patch)', () => {
-  // bug: the schema's STMT_PROPS.kind enum was missing `http_patch`,
-  // so a PATCH /foo stmt would build a valid IR but the validator
-  // would reject it. the user got `ir invalid: /behaviors/0/body/N/kind
-  // must be equal to one of the allowed values` and the build died
-  // before reaching cmake.
+  // bug: schema's STMT_PROPS.kind enum was missing http_patch - validator killed the build.
   const src = 'Create a console application.\nWhen the program starts:\n    PATCH /api/v1\n';
   const r = parseStructured(src);
   const ir = buildIR(r.blocks, r.prose, 'p');
@@ -561,29 +484,19 @@ test('PATCH /path is parsed and accepted by the schema (was: validator rejected 
 });
 
 test('for each over [1,2,3] converts to c++ {1,2,3} brace-list', async () => {
-  // bug: `for each n in [1,2,3,4,5]:` used to emit
-  //   for (auto& n : "[1,2,3,4,5]") { ... }
-  // because rhsFor treated the bracketed value as a string literal.
-  // c++ doesn't accept `[1,2,3]` as an initializer list — only
-  // `{1,2,3}` works — so emit a translation in the for-stmt path.
+  // bug: rhsFor treated `[1,2,3]` as a string literal. c++ wants `{1,2,3}`.
   const { slug: _slug } = await import('../../lib/runtime/slug.mjs');
   void _slug;
   const src = 'Create a console application.\nWhen the program starts:\n    for each n in [1,2,3,4,5]:\n        print n\n';
   const r = parseStructured(src);
   const ir = buildIR(r.blocks, r.prose, 'p');
   const cpp = emitCpp(ir);
-  // for-each loops always use `auto&&` (forwarding reference) so the
-  // c++ compiler accepts binding the iter to a temporary initializer
-  // list like `{1,2,3,4,5}` (binding `auto&` to an rvalue is illegal).
   assert.match(cpp, /for \(auto&& n : \{1,2,3,4,5\}\)/);
   assert.doesNotMatch(cpp, /for \(auto&& n : "\[/);
 });
 
 test('hex literal 0xFF is a number, not a string (was: set hex = 0xFF emitted "0xFF")', () => {
-  // bug: parseValue only matched signed/unsigned decimal, so hex and
-  // binary literals fell through to the bare-token branch and ended
-  // up as the literal string "0xFF". `auto hex = "0xFF";` instead of
-  // `auto hex = 255;`. users with hardware/embedded intent hit this.
+  // bug: parseValue only handled decimal. 0xFF/0b... fell through to a string literal.
   const src = 'Create a console application.\nWhen the program starts:\n    set hex = 0xFF\n    set bin = 0b1010\n    print hex\n';
   const r = parseStructured(src);
   const ir = buildIR(r.blocks, r.prose, 'p');
@@ -594,31 +507,19 @@ test('hex literal 0xFF is a number, not a string (was: set hex = 0xFF emitted "0
 });
 
 test('set with string literal declares std::string, not const char* (was: concat failed)', () => {
-  // bug: `set greeting = "Hello"` used to emit `auto greeting = "Hello";`
-  // which deduces `const char*`. later concatenation like
-  // `set combined = greeting + ", " + name` then failed at compile time
-  // because `const char*` doesn't support `+`. declaring the binding as
-  // `std::string` makes concatenation work without forcing the user to
-  // spell out the type. concat results stay `auto` (the compiler
-  // deduces std::string from the lhs).
+  // bug: `set greeting = "Hello"` used `auto` which deduced const char* and broke `+` concat.
   const src = 'Create a console application.\nWhen the program starts:\n    set greeting = "Hello"\n    set name = "World"\n    set combined = greeting + ", " + name + "!"\n    print combined\n';
   const r = parseStructured(src);
   const ir = buildIR(r.blocks, r.prose, 'p');
   const cpp = emitCpp(ir);
   assert.match(cpp, /std::string greeting = "Hello";/);
   assert.match(cpp, /std::string name = "World";/);
-  // the concat result is `auto` (not std::string) because the rhs
-  // isn't a quoted-literal set; the c++ type is deduced from the
-  // leftmost std::string operand, so the result type is std::string.
+  // concat deduces std::string from the leftmost operand
   assert.match(cpp, /auto combined = greeting \+ ", " \+ name \+ "!";/);
 });
 
 test('ask: variable name is in knownIdents so print X works (was: printed "X" string)', () => {
-  // bug: `ask the user for their name` declares a c++ variable
-  // named `name`, but the ask emit didn't add that name to
-  // knownIdents. a later `print name` then fell through cppRhs
-  // and was emitted as `std::cout << "name" << ...` (the literal
-  // string) instead of `std::cout << name << ...` (the variable).
+  // bug: ask emit didn't register the declared name, so `print name` printed the literal "name".
   const src = 'Create a console application.\nWhen the program starts:\n    ask the user for their name\n    print name\n';
   const r = parseStructured(src);
   const ir = buildIR(r.blocks, r.prose, 'p');
@@ -630,11 +531,7 @@ test('ask: variable name is in knownIdents so print X works (was: printed "X" st
 });
 
 test('log without spdlog requirement compiles (was: spdlog::info undefined ref)', () => {
-  // bug: `log info foo` used to emit `spdlog::info("foo")` which
-  // requires the user to also `Require: spdlog`. a stray `log` in
-  // user code without a Require produced a build that linked to a
-  // missing spdlog library. fall back to std::clog so logs always
-  // compile, even when spdlog isn't a dep.
+  // bug: `log info foo` used spdlog::info() with no Require: spdlog. fall back to std::clog.
   const src = 'Create a console application.\nWhen the program starts:\n    log info started\n    log warn something\n    log error bad\n';
   const r = parseStructured(src);
   const ir = buildIR(r.blocks, r.prose, 'p');
@@ -648,12 +545,7 @@ test('log without spdlog requirement compiles (was: spdlog::info undefined ref)'
 });
 
 test('for each over a number source becomes a counted range loop', () => {
-  // bug: `for each i in 5` used to emit `for (auto& i : 5) { ... }`
-  // which is a c++ error — an int has no `begin`/`end`. translate a
-  // numeric source to a counted range-based for over a synthetic
-  // initializer list, so the loop runs N times.
-  // the loop variable is also `auto&&` (forwarding reference) so the
-  // c++ compiler accepts binding it to the rvalue initializer list.
+  // bug: `for each i in 5` used auto& i in 5 - int has no begin/end. use a brace-list.
   const src = 'Create a console application.\nWhen the program starts:\n    for each i in 3:\n        print i\n';
   const r = parseStructured(src);
   const ir = buildIR(r.blocks, r.prose, 'p');
@@ -663,13 +555,7 @@ test('for each over a number source becomes a counted range loop', () => {
 });
 
 test('for each over a bare-word source becomes string_view iteration', () => {
-  // bug: `for each c in hello` used to emit
-  // `for (auto& c : "hello") {` (the parser didn't quote it but the
-  // emitter assumed it was a literal). that iterates over a
-  // `const char*`, which is a compile error in c++20. wrap the
-  // source in std::string_view so the iteration is over chars.
-  // the loop variable is also `auto&&` so the compiler accepts
-  // binding the reference to a `std::string_view` rvalue.
+  // bug: `for each c in hello` iter over const char* is a c++20 error. wrap in string_view.
   const src = 'Create a console application.\nWhen the program starts:\n    for each c in hello:\n        print c\n';
   const r = parseStructured(src);
   const ir = buildIR(r.blocks, r.prose, 'p');
@@ -678,11 +564,7 @@ test('for each over a bare-word source becomes string_view iteration', () => {
 });
 
 test('REST route path with :param is emitted as a std::regex (was: cpp-httplib rejects :id in plain strings)', () => {
-  // bug: `PUT /users/:id` used to emit
-  //   svr.Put("/users/:id", [...])
-  // cpp-httplib treats that as a literal path match and never accepts
-  // a real request. translate the path to a std::regex with a capture
-  // group so the route actually matches.
+  // bug: cpp-httplib treats `svr.Put("/users/:id", ...)` as a literal path match. use a regex capture.
   const ir = {
     program: { name: 'rest', kind: 'rest' },
     requirements: [{ name: 'cpp-httplib', source: 'vcpkg' }],
@@ -698,8 +580,7 @@ test('REST route path with :param is emitted as a std::regex (was: cpp-httplib r
     ],
   };
   const cpp = emitCpp(ir);
-  // use String.includes — regex literals can't be used here because
-  // the path contains `/` chars that would terminate the literal.
+  // String.includes — regex literals choke on the `/` in the path
   assert.ok(cpp.includes('std::regex(R"(/users/([^/]+))")'),
     'expected regex route path, got:\n' + cpp);
   assert.ok(!cpp.includes('svr.Put("/users/:id"'),
@@ -707,9 +588,7 @@ test('REST route path with :param is emitted as a std::regex (was: cpp-httplib r
 });
 
 test('return inside a REST route sets res content and uses void return (was: fatal "return value from void lambda")', () => {
-  // bug: a route body is wrapped in a void lambda, so emitting
-  // `return "ok";` was a hard compile error. emit the value via
-  // res.set_content and a plain `return;` (void) instead.
+  // bug: route body is a void lambda. emit res.set_content + void return;
   const ir = {
     program: { name: 'rest', kind: 'rest' },
     requirements: [{ name: 'cpp-httplib', source: 'vcpkg' }],
@@ -725,30 +604,22 @@ test('return inside a REST route sets res content and uses void return (was: fat
     ],
   };
   const cpp = emitCpp(ir);
-  // use String.includes — regex literals are fragile here because the
-  // path has `/` which js would interpret as a regex flag boundary.
+  // String.includes - `/` in the content-type would terminate a regex literal
   assert.ok(cpp.includes('res.set_content("hi", "text/plain")'),
     'expected res.set_content line, got:\n' + cpp);
-  // must not have a bare `return "hi";` in the route lambda
+  // no bare `return "hi";` inside the void lambda
   assert.ok(!/return "hi";/.test(cpp),
     'expected no return "hi"; in route, got:\n' + cpp);
   // must have a bare `return;` to satisfy the void lambda
   assert.ok(/^ {8}return;$/m.test(cpp),
     'expected void return; line, got:\n' + cpp);
-  // must not have a trailing "ok" bodySetResponse fallback - the
-  // explicit return already set the response, so appending "ok" would
-  // be unreachable code and look like a bug.
+  // no trailing "ok" fallback - the explicit return already set the response
   assert.ok(!cpp.includes('res.set_content("ok"'),
     'expected no trailing ok fallback after return, got:\n' + cpp);
 });
 
 test('file_read with bare variable path uses c++ identifier (was: looked for file literally named the variable)', () => {
-  // bug: the path was hardcoded through cppString, so
-  //   set p = "data.txt"
-  //   file_read p into raw
-  // opened a file named "p" instead of the variable's value.
-  // route the path through rhsFor so a bare-word path is a c++
-  // identifier when in knownIdents.
+  // bug: path was hardcoded through cppString, so `file_read p` opened a file named "p".
   const src = 'Create a console application.\nWhen the program starts:\n    set p = "data.txt"\n    file_read p into raw\n';
   const r = parseStructured(src);
   const ir = buildIR(r.blocks, r.prose, 'p');
@@ -758,11 +629,7 @@ test('file_read with bare variable path uses c++ identifier (was: looked for fil
 });
 
 test('discoverEntries skips the configured output directory (was: re-discovered its own artifacts)', async () => {
-  // bug: `nlpc build -o dist` would write to dist/ then on the next
-  // invocation walk into dist/ and pick up generated files. the
-  // discoverer must skip whatever out dir the user chose.
-  // simulate by creating a temp project with a .nlp file in src/ and
-  // an empty dist/ directory, and assert dist/ is not recursed into.
+  // bug: `nlpc build -o dist` walked into dist/ on the next run.
   const { mkdtempSync, mkdirSync, writeFileSync, rmSync } = await import('node:fs');
   const { join } = await import('node:path');
   const { discoverEntries } = await import('../../lib/project.mjs');
@@ -770,7 +637,7 @@ test('discoverEntries skips the configured output directory (was: re-discovered 
   try {
     mkdirSync(join(tmp, 'src'));
     writeFileSync(join(tmp, 'src', 'a.nlp'), '// a\n');
-    // build-out dir (the default) must be skipped
+    // build-out (default) must be skipped
     mkdirSync(join(tmp, 'build-out'));
     writeFileSync(join(tmp, 'build-out', 'b.nlp'), '// fake, must be skipped\n');
     // custom out dir (e.g. "dist") must also be skipped
@@ -782,4 +649,52 @@ test('discoverEntries skips the configured output directory (was: re-discovered 
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
+});
+
+test('for-loop local does not leak into outer scope (was: second loop emitted bare assignment)', () => {
+  // bug: the loop body's `set temp = ...` was added to the parent
+  // function's declared set. the second `for each j` saw `temp` as
+  // already declared and emitted `temp = 6;` with no `auto` -> fatal
+  // c++ scope error.
+  const src = [
+    'Create a console application.',
+    'When the program starts:',
+    '    for each i in 3:',
+    '        set temp = 5',
+    '    for each j in 3:',
+    '        set temp = 6',
+  ].join('\n');
+  const r = parseStructured(src);
+  const ir = buildIR(r.blocks, r.prose, 'p');
+  const cpp = emitCpp(ir);
+  // both iterations must have their own `auto temp = ...;` declaration
+  const decls = cpp.match(/auto temp = /g) || [];
+  assert.equal(decls.length, 2, 'expected two `auto temp =` declarations, got:\n' + cpp);
+  // and no bare `temp = ` assignment outside the loops
+  const lines = cpp.split('\n').filter(l => /^\s*temp\s*=/.test(l));
+  assert.equal(lines.length, 0, 'expected no bare temp = lines, got:\n' + lines.join('\n'));
+});
+
+test('emitCpp includes <string_view> header (was: failed on libc++/msvc)', () => {
+  // bug: std::string_view was used for `for each c in hello` but the
+  // header was not emitted. libstdc++ masked the bug; libc++/msvc do not.
+  const ir = { requirements: [], declarations: [], behaviors: [] };
+  const cpp = emitCpp(ir);
+  assert.match(cpp, /#include <string_view>/);
+});
+
+test('cmake toolchain runs find_package(httplib) so httplib::httplib target exists (was: target not found)', () => {
+  // bug: cpp-httplib's vcpkg port ships a CMake config that defines
+  // httplib::httplib. skipping find_package meant the link step
+  // exploded with "Target links to target 'httplib::httplib' but the
+  // target was not found".
+  const ir = {
+    program: { name: 'rest', kind: 'rest' },
+    requirements: [{ name: 'cpp-httplib' }],
+    declarations: [],
+    behaviors: [],
+  };
+  const { cmake } = emitProject(ir, 'rest');
+  assert.match(cmake, /find_package\(httplib CONFIG REQUIRED\)/);
+  assert.match(cmake, /httplib::httplib/);
 });
