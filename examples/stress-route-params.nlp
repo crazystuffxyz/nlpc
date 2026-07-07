@@ -1,0 +1,17 @@
+// stress route with :id param + return inside route
+Application:
+    type: REST API
+
+Require the HTTP client library.
+
+When the program starts:
+    serve on port 8080
+
+GET /users/:id
+    return "user found"
+
+PUT /users/:id
+    return "updated"
+
+DELETE /posts/:slug/comments/:cid
+    return "comment removed"

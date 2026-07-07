@@ -172,7 +172,7 @@ test('top-level for each captures indented body (bug #13)', () => {
   const r = parseStructured('Create a console application.\nfor each item in items:\n    print item\nprint done\n');
   const ir = buildIR(r.blocks, r.prose, 'fortop');
   const cpp = emitCpp(ir);
-  assert.match(cpp, /for \(auto& item/);
+  assert.match(cpp, /for \(auto&& item/);
   assert.match(cpp, /std::cout << item/);
   assert.match(cpp, /std::cout << "done"/);
 });
@@ -322,7 +322,7 @@ test('for each in main captures indented body', () => {
   assert.match(cpp, /std::cout << item/);
   assert.match(cpp, /std::cout << "again"/);
   // done is a sibling, not inside the for
-  const forStart = cpp.indexOf('for (auto& item');
+  const forStart = cpp.indexOf('for (auto&& item');
   const donePos = cpp.indexOf('"done"');
   assert.ok(forStart > 0 && donePos > forStart, 'done should come after for');
   // done should be after the for's closing brace
@@ -382,8 +382,11 @@ test('for each over initializer list passes through as c++ brace-list', () => {
   const r = parseStructured(src);
   const ir = buildIR(r.blocks, r.prose, 'f');
   const cpp = emitCpp(ir);
-  assert.match(cpp, /for \(auto& x : \{1,2,3,4,5\}\)/);
-  assert.doesNotMatch(cpp, /for \(auto& x : "\{1,2,3,4,5\}"\)/);
+  // for-each loops always use `auto&&` (forwarding reference) so the
+  // c++ compiler accepts binding the iter to a temporary initializer
+  // list like `{1,2,3,4,5}` (binding `auto&` to an rvalue is illegal).
+  assert.match(cpp, /for \(auto&& x : \{1,2,3,4,5\}\)/);
+  assert.doesNotMatch(cpp, /for \(auto&& x : "\{1,2,3,4,5\}"\)/);
 });
 
 test('return with leading single quote is re-quoted (illegal c++)', () => {
@@ -569,8 +572,11 @@ test('for each over [1,2,3] converts to c++ {1,2,3} brace-list', async () => {
   const r = parseStructured(src);
   const ir = buildIR(r.blocks, r.prose, 'p');
   const cpp = emitCpp(ir);
-  assert.match(cpp, /for \(auto& n : \{1,2,3,4,5\}\)/);
-  assert.doesNotMatch(cpp, /for \(auto& n : "\[/);
+  // for-each loops always use `auto&&` (forwarding reference) so the
+  // c++ compiler accepts binding the iter to a temporary initializer
+  // list like `{1,2,3,4,5}` (binding `auto&` to an rvalue is illegal).
+  assert.match(cpp, /for \(auto&& n : \{1,2,3,4,5\}\)/);
+  assert.doesNotMatch(cpp, /for \(auto&& n : "\[/);
 });
 
 test('hex literal 0xFF is a number, not a string (was: set hex = 0xFF emitted "0xFF")', () => {
@@ -646,12 +652,14 @@ test('for each over a number source becomes a counted range loop', () => {
   // which is a c++ error — an int has no `begin`/`end`. translate a
   // numeric source to a counted range-based for over a synthetic
   // initializer list, so the loop runs N times.
+  // the loop variable is also `auto&&` (forwarding reference) so the
+  // c++ compiler accepts binding it to the rvalue initializer list.
   const src = 'Create a console application.\nWhen the program starts:\n    for each i in 3:\n        print i\n';
   const r = parseStructured(src);
   const ir = buildIR(r.blocks, r.prose, 'p');
   const cpp = emitCpp(ir);
-  assert.match(cpp, /for \(auto& i : \{0,0,0\}\)/);
-  assert.doesNotMatch(cpp, /for \(auto& i : 5\)/);
+  assert.match(cpp, /for \(auto&& i : \{0,0,0\}\)/);
+  assert.doesNotMatch(cpp, /for \(auto&& i : 5\)/);
 });
 
 test('for each over a bare-word source becomes string_view iteration', () => {
@@ -660,9 +668,118 @@ test('for each over a bare-word source becomes string_view iteration', () => {
   // emitter assumed it was a literal). that iterates over a
   // `const char*`, which is a compile error in c++20. wrap the
   // source in std::string_view so the iteration is over chars.
+  // the loop variable is also `auto&&` so the compiler accepts
+  // binding the reference to a `std::string_view` rvalue.
   const src = 'Create a console application.\nWhen the program starts:\n    for each c in hello:\n        print c\n';
   const r = parseStructured(src);
   const ir = buildIR(r.blocks, r.prose, 'p');
   const cpp = emitCpp(ir);
-  assert.match(cpp, /for \(auto& c : std::string_view\("hello"\)\)/);
+  assert.match(cpp, /for \(auto&& c : std::string_view\("hello"\)\)/);
+});
+
+test('REST route path with :param is emitted as a std::regex (was: cpp-httplib rejects :id in plain strings)', () => {
+  // bug: `PUT /users/:id` used to emit
+  //   svr.Put("/users/:id", [...])
+  // cpp-httplib treats that as a literal path match and never accepts
+  // a real request. translate the path to a std::regex with a capture
+  // group so the route actually matches.
+  const ir = {
+    program: { name: 'rest', kind: 'rest' },
+    requirements: [{ name: 'cpp-httplib', source: 'vcpkg' }],
+    declarations: [],
+    behaviors: [
+      { trigger: 'start', body: [] },
+      {
+        trigger: 'route',
+        method: 'PUT',
+        path: '/users/:id',
+        body: [{ kind: 'return', value: 'ok', isString: true }],
+      },
+    ],
+  };
+  const cpp = emitCpp(ir);
+  // use String.includes — regex literals can't be used here because
+  // the path contains `/` chars that would terminate the literal.
+  assert.ok(cpp.includes('std::regex(R"(/users/([^/]+))")'),
+    'expected regex route path, got:\n' + cpp);
+  assert.ok(!cpp.includes('svr.Put("/users/:id"'),
+    'expected no literal :id path, got:\n' + cpp);
+});
+
+test('return inside a REST route sets res content and uses void return (was: fatal "return value from void lambda")', () => {
+  // bug: a route body is wrapped in a void lambda, so emitting
+  // `return "ok";` was a hard compile error. emit the value via
+  // res.set_content and a plain `return;` (void) instead.
+  const ir = {
+    program: { name: 'rest', kind: 'rest' },
+    requirements: [{ name: 'cpp-httplib', source: 'vcpkg' }],
+    declarations: [],
+    behaviors: [
+      { trigger: 'start', body: [] },
+      {
+        trigger: 'route',
+        method: 'GET',
+        path: '/hello',
+        body: [{ kind: 'return', value: 'hi', isString: true }],
+      },
+    ],
+  };
+  const cpp = emitCpp(ir);
+  // use String.includes — regex literals are fragile here because the
+  // path has `/` which js would interpret as a regex flag boundary.
+  assert.ok(cpp.includes('res.set_content("hi", "text/plain")'),
+    'expected res.set_content line, got:\n' + cpp);
+  // must not have a bare `return "hi";` in the route lambda
+  assert.ok(!/return "hi";/.test(cpp),
+    'expected no return "hi"; in route, got:\n' + cpp);
+  // must have a bare `return;` to satisfy the void lambda
+  assert.ok(/^ {8}return;$/m.test(cpp),
+    'expected void return; line, got:\n' + cpp);
+  // must not have a trailing "ok" bodySetResponse fallback - the
+  // explicit return already set the response, so appending "ok" would
+  // be unreachable code and look like a bug.
+  assert.ok(!cpp.includes('res.set_content("ok"'),
+    'expected no trailing ok fallback after return, got:\n' + cpp);
+});
+
+test('file_read with bare variable path uses c++ identifier (was: looked for file literally named the variable)', () => {
+  // bug: the path was hardcoded through cppString, so
+  //   set p = "data.txt"
+  //   file_read p into raw
+  // opened a file named "p" instead of the variable's value.
+  // route the path through rhsFor so a bare-word path is a c++
+  // identifier when in knownIdents.
+  const src = 'Create a console application.\nWhen the program starts:\n    set p = "data.txt"\n    file_read p into raw\n';
+  const r = parseStructured(src);
+  const ir = buildIR(r.blocks, r.prose, 'p');
+  const cpp = emitCpp(ir);
+  assert.match(cpp, /std::ifstream _nlpc_in\(p\)/);
+  assert.doesNotMatch(cpp, /std::ifstream _nlpc_in\("p"\)/);
+});
+
+test('discoverEntries skips the configured output directory (was: re-discovered its own artifacts)', async () => {
+  // bug: `nlpc build -o dist` would write to dist/ then on the next
+  // invocation walk into dist/ and pick up generated files. the
+  // discoverer must skip whatever out dir the user chose.
+  // simulate by creating a temp project with a .nlp file in src/ and
+  // an empty dist/ directory, and assert dist/ is not recursed into.
+  const { mkdtempSync, mkdirSync, writeFileSync, rmSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  const { discoverEntries } = await import('../../lib/project.mjs');
+  const tmp = mkdtempSync(join(process.env.TEMP || process.env.TMPDIR || '/tmp', 'nlpc-test-'));
+  try {
+    mkdirSync(join(tmp, 'src'));
+    writeFileSync(join(tmp, 'src', 'a.nlp'), '// a\n');
+    // build-out dir (the default) must be skipped
+    mkdirSync(join(tmp, 'build-out'));
+    writeFileSync(join(tmp, 'build-out', 'b.nlp'), '// fake, must be skipped\n');
+    // custom out dir (e.g. "dist") must also be skipped
+    mkdirSync(join(tmp, 'dist'));
+    writeFileSync(join(tmp, 'dist', 'c.nlp'), '// fake, must be skipped\n');
+    const entries = discoverEntries(tmp, null, 'dist');
+    assert.equal(entries.length, 1);
+    assert.ok(entries[0].endsWith('a.nlp'));
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
 });
