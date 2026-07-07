@@ -211,3 +211,69 @@ test('print multi-word with no operator emits string literal', () => {
   assert.match(cpp, /std::cout << "hello world"/);
   assert.doesNotMatch(cpp, /std::cout << hello world/);
 });
+
+test('for each in main with colon strips colon from source', () => {
+  // bug: `for each item in items:` inside main used to capture the
+  // trailing colon as part of the source string, producing
+  // `for (auto& item : "items:")`. the trailing-colon stripping was
+  // only in the top-level handler; parseMainLine's inner regex needed
+  // the same fix.
+  const src = 'Create a console application.\nWhen the program starts:\n    for each item in items:\n        print item\n';
+  const r = parseStructured(src);
+  const ir = buildIR(r.blocks, r.prose, 'f');
+  const cpp = emitCpp(ir);
+  assert.match(cpp, /for \(auto& item : "items"\)/);
+  assert.doesNotMatch(cpp, /for \(auto& item : "items:"\)/);
+});
+
+test('for each in main captures indented body', () => {
+  // bug: indented children of an inner `for` block were being lost
+  // because parseBodyLines's child-gather only ran for the very first
+  // pass (the main-block children) and the for stmt returned without
+  // its body populated.
+  const src = 'Create a console application.\nWhen the program starts:\n    for each item in items\n        print item\n        print again\n    print done\n';
+  const r = parseStructured(src);
+  const ir = buildIR(r.blocks, r.prose, 'f');
+  const cpp = emitCpp(ir);
+  assert.match(cpp, /for \(auto& item : "items"\)/);
+  assert.match(cpp, /std::cout << item/);
+  assert.match(cpp, /std::cout << "again"/);
+  // done is a sibling, not inside the for
+  const forStart = cpp.indexOf('for (auto& item');
+  const donePos = cpp.indexOf('"done"');
+  assert.ok(forStart > 0 && donePos > forStart, 'done should come after for');
+  // done should be after the for's closing brace
+  const forEnd = cpp.indexOf('}', forStart);
+  assert.ok(donePos > forEnd, 'done should be outside the for loop');
+});
+
+test('paren-form params accept rust-style name: type', () => {
+  // bug: `(a: int, b: int)` used to be parsed as if the type was the
+  // name (`int`) and the name was the type (`a:`). the parser now
+  // detects the trailing `:` on the first segment and uses rust-style
+  // order.
+  const src = 'Create a console application.\nMake a function called add(a: int, b: int) -> int:\n    return a + b\n';
+  const r = parseStructured(src);
+  const fn = r.blocks.find(b => b.kind === 'function');
+  assert.ok(fn);
+  assert.equal(fn.params[0].name, 'a');
+  assert.equal(fn.params[0].type, 'int');
+  assert.equal(fn.params[1].name, 'b');
+  assert.equal(fn.params[1].type, 'int');
+  const ir = buildIR(r.blocks, r.prose, 'f');
+  const cpp = emitCpp(ir);
+  assert.match(cpp, /int add\(int a, int b\)/);
+  assert.doesNotMatch(cpp, /std::string int/);
+});
+
+test('arrow-style return type is recognized', () => {
+  // bug: `-> int` was not recognized; returns was null and the emitter
+  // defaulted to std::string. the parser now falls back to /-> type/.
+  const src = 'Create a console application.\nMake a function called sq(x: int) -> int:\n    return x * x\n';
+  const r = parseStructured(src);
+  const fn = r.blocks.find(b => b.kind === 'function');
+  assert.equal(fn.returns, 'int');
+  const ir = buildIR(r.blocks, r.prose, 'f');
+  const cpp = emitCpp(ir);
+  assert.match(cpp, /int sq\(int x\)/);
+});
