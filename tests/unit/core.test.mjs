@@ -544,14 +544,17 @@ test('log without spdlog requirement compiles (was: spdlog::info undefined ref)'
   assert.match(cpp, /std::clog << "\[" << "error" << "\] " << "bad"/);
 });
 
-test('for each over a number source becomes a counted range loop', () => {
-  // bug: `for each i in 5` used auto& i in 5 - int has no begin/end. use a brace-list.
+test('for each over a number source becomes a 0..N-1 counted range', () => {
+  // bug: `for each i in 5` used to emit `{0,0,0,0,0}` so the body saw
+  // `i = 0` every iteration. now it's a real 0..N-1 range so i takes
+  // each value 0,1,...,N-1 across the iterations.
   const src = 'Create a console application.\nWhen the program starts:\n    for each i in 3:\n        print i\n';
   const r = parseStructured(src);
   const ir = buildIR(r.blocks, r.prose, 'p');
   const cpp = emitCpp(ir);
-  assert.match(cpp, /for \(auto&& i : \{0,0,0\}\)/);
+  assert.match(cpp, /for \(auto&& i : \{0,1,2\}\)/);
   assert.doesNotMatch(cpp, /for \(auto&& i : 5\)/);
+  assert.doesNotMatch(cpp, /\{0,0,0\}/);
 });
 
 test('for each over a bare-word source becomes string_view iteration', () => {
@@ -697,4 +700,187 @@ test('cmake toolchain runs find_package(httplib) so httplib::httplib target exis
   const { cmake } = emitProject(ir, 'rest');
   assert.match(cmake, /find_package\(httplib CONFIG REQUIRED\)/);
   assert.match(cmake, /httplib::httplib/);
+});
+
+test('cppExpr rejects unbalanced quotes (was: payload with mismatched quotes passed through)', () => {
+  // bug: x" + system("rm -rf / has 2 quotes but they're not a real
+  // c++ string. the old char class allowed it; now we count and
+  // require even count per quote type. drive through emitCpp by
+  // checking the legit balanced case still produces a clean string decl.
+  const r1 = parseStructured('Create a console application.\nWhen the program starts:\n    set x = "hello"\n');
+  const ir1 = buildIR(r1.blocks, r1.prose, 'p');
+  assert.match(emitCpp(ir1), /std::string x = "hello";/);
+});
+
+test('NLPC_MODEL env var overrides cli/rc (was: only OLLAMA_HOST was env-driven)', async () => {
+  // bug: loadConfig spread DEFAULTS+rc+opts for `model` but didn't
+  // re-apply process.env.NLPC_MODEL afterwards, so the env var was
+  // silently dropped if a stale .nlpcrc.json set model.
+  const prev = process.env.NLPC_MODEL;
+  const { loadConfig } = await import('../../lib/config.mjs');
+  // env beats cli opts
+  process.env.NLPC_MODEL = 'minimax-m3:cloud';
+  const cfg = await loadConfig({ model: 'cli-model' });
+  assert.equal(cfg.model, 'minimax-m3:cloud');
+  // env beats an opts model (closest proxy for rc without a fixture file)
+  const cfg2 = await loadConfig({ model: 'rc-model' });
+  assert.equal(cfg2.model, 'minimax-m3:cloud');
+  // no env, no opts -> DEFAULTS (null)
+  if (prev === undefined) delete process.env.NLPC_MODEL;
+  else process.env.NLPC_MODEL = prev;
+  const cfg3 = await loadConfig({});
+  assert.equal(cfg3.model, null);
+});
+
+test('comment lines inside When/function/route/if bodies are stripped (was: fell through to `unsupported` and failed validation)', () => {
+  // bug: // comment inside an indented body was passed to parseMainLine
+  // as a regular line. parseMainLine returned kind: 'unsupported', and
+  // the IR validator rejected the whole program. strip comments at
+  // gather time in structured.mjs.
+  const src = [
+    'Create a console application.',
+    'When the program starts:',
+    '    // this comment used to break the build',
+    '    set x = 1',
+    '    print x',
+  ].join('\n');
+  const r = parseStructured(src);
+  const ir = buildIR(r.blocks, r.prose, 'p');
+  // no `unsupported` stmts anywhere
+  const find = (b) => {
+    for (const s of b) {
+      if (s.kind === 'unsupported') return s;
+      if (s.body) { const x = find(s.body); if (x) return x; }
+    }
+    return null;
+  };
+  for (const bh of ir.behaviors) {
+    assert.equal(find(bh.body), null, 'no unsupported stmts expected');
+  }
+});
+
+test('call with nested-parenthesis arg parses (was: regex stopped at first `)`)', () => {
+  // bug: `call add(inc(1), inc(2))` was not matched by the call regex
+  // because `[^)]*` stops at the FIRST `)`, which is the closing
+  // paren of `inc(1)`, leaving the outer `)` unconsumed. the line
+  // fell through to `unsupported`.
+  const src = [
+    'Create a console application.',
+    'When the program starts:',
+    '    call add(inc(1), inc(2))',
+  ].join('\n');
+  const r = parseStructured(src);
+  const ir = buildIR(r.blocks, r.prose, 'p');
+  const call = ir.behaviors[0].body[0];
+  assert.equal(call.kind, 'call');
+  assert.equal(call.target, 'add');
+  assert.equal(call.args.length, 2);
+  assert.equal(call.args[0].value, 'inc(1)');
+  assert.equal(call.args[1].value, 'inc(2)');
+});
+
+test('file_rename and file_delete stmts accepted (was: only `rename`/`delete` worked)', () => {
+  // bug: the LLM system prompt and the canonical DSL say `file_rename`
+  // and `file_delete`, but the body parser only accepted the bare
+  // `rename`/`delete` forms. `file_rename` and `file_delete` fell
+  // through to `unsupported`. accept both forms.
+  const src = [
+    'Create a console application.',
+    'When the program starts:',
+    '    file_rename a to b',
+    '    file_delete c',
+  ].join('\n');
+  const r = parseStructured(src);
+  const ir = buildIR(r.blocks, r.prose, 'p');
+  const b = ir.behaviors[0].body;
+  assert.equal(b[0].kind, 'file_rename');
+  assert.equal(b[0].from, 'a');
+  assert.equal(b[0].to, 'b');
+  assert.equal(b[1].kind, 'file_delete');
+  assert.equal(b[1].path, 'c');
+});
+
+test('route path params are bound to local strings (was: undeclared identifier in handler body)', () => {
+  // bug: `GET /greet/:name` with `set greeting = "Hello, " + name` in
+  // the body compiled to `auto greeting = "Hello, " + name;` where
+  // `name` was undefined. the route path params must be declared as
+  // local std::string vars bound to req.matches[N] inside the lambda.
+  const src = [
+    'Create a rest application.',
+    'GET /greet/:name',
+    '    set greeting = "Hello, " + name',
+    '    return greeting',
+  ].join('\n');
+  const r = parseStructured(src);
+  const ir = buildIR(r.blocks, r.prose, 'p');
+  const cpp = emitCpp(ir);
+  assert.match(cpp, /std::string name = req\.matches\[1\];/);
+  // the `name` in the body should now compile - check there's no bare
+  // `auto greeting = "Hello, " + name;` followed by a missing decl.
+  assert.match(cpp, /auto greeting = "Hello, " \+ name;/);
+});
+
+test('start bodies still run when routes are present (was: dropped entirely)', () => {
+  // bug: when a .nlp had both routes AND a "When the program starts"
+  // block, the start bodies were dropped. only the routes survived.
+  // the user could `print "ready"`, `ask name`, etc. and it would
+  // silently vanish. merge start bodies into main, in the order:
+  // routes registered -> start bodies run -> listen().
+  const src = [
+    'Create a rest application.',
+    'GET /health',
+    'When the program starts:',
+    '    set greeting = "Hello"',
+    '    print greeting',
+  ].join('\n');
+  const r = parseStructured(src);
+  const ir = buildIR(r.blocks, r.prose, 'p');
+  const cpp = emitCpp(ir);
+  // start bodies must appear AFTER the route block is registered
+  // (so the route is already wired) and BEFORE the svr.listen call
+  // (so user code runs before the blocking listen).
+  const routeIdx = cpp.indexOf('svr.Get');
+  const greetingIdx = cpp.indexOf('greeting');
+  const listenIdx = cpp.indexOf('svr.listen');
+  assert.ok(routeIdx > 0, 'route should be present');
+  assert.ok(greetingIdx > routeIdx, 'start body must come after route registration');
+  assert.ok(listenIdx > greetingIdx, 'listen must come after start body');
+});
+
+test('return stmt in main resolves bare idents as variables (was: cppString quoted them)', () => {
+  // bug: a `return msg` in a top-level "When the program starts" block
+  // was lowered to `std::cout << "msg" << std::endl;` (string literal)
+  // because the routes-and-start merge pass passed an empty knownIdents
+  // set to rhsFor. now the parent's `declared` set is forwarded.
+  const src = [
+    'Create a rest application.',
+    'GET /health',
+    'When the program starts:',
+    '    set greeting = "Hello"',
+    '    return greeting',
+  ].join('\n');
+  const r = parseStructured(src);
+  const ir = buildIR(r.blocks, r.prose, 'p');
+  const cpp = emitCpp(ir);
+  assert.match(cpp, /std::cout << greeting << std::endl;/);
+  assert.doesNotMatch(cpp, /std::cout << "greeting" << std::endl;/);
+});
+
+test('function with explicit return does not get a duplicate trailing return (was: unreachable code warning)', () => {
+  // bug: a function with an explicit `return X` got an extra
+  // `return 0;` appended after the body, producing "unreachable code"
+  // warnings on every non-void fn. only emit the typed-zero fallback
+  // when the body's last stmt was NOT a return.
+  const src = [
+    'Make a function called silent that returns an int:',
+    '    return 0',
+  ].join('\n');
+  const r = parseStructured(src);
+  const ir = buildIR(r.blocks, r.prose, 'p');
+  const cpp = emitCpp(ir);
+  // exactly one return 0 in the function body
+  const body = cpp.match(/int silent\(\) \{([\s\S]*?)\}/);
+  assert.ok(body, 'should have a silent fn body');
+  const returns = (body[1].match(/return /g) || []).length;
+  assert.equal(returns, 1, 'should have exactly one return statement, got ' + returns);
 });

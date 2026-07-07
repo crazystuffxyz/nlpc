@@ -1,0 +1,32 @@
+// STRESS-EDGE-5: REST routes and path params.
+// edges: every method, paths with :params, paths without, mixed
+// route body with return that sets the response, log inside route,
+// file write inside route, regex capture group, multiple params.
+
+Create a rest application.
+
+Application:
+    type: REST API
+
+GET /health
+GET /users/:id
+GET /users/:id/posts/:post_id
+POST /users
+PUT /users/:id
+DELETE /users/:id
+PATCH /users/:id
+
+// explicit "return" inside a route must convert the lambda to a
+// void `res.set_content(...); return;` instead of `return "...";`
+// (the latter is a fatal "return value from void lambda" error).
+GET /greet/:name
+    set greeting = "Hello, " + name
+    return greeting
+
+POST /echo/:tag
+    log info got tag
+    return "ok"
+
+PUT /files/:name
+    file_write name with "ok"
+    return "written"

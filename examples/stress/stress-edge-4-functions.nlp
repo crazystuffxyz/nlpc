@@ -1,0 +1,39 @@
+// STRESS-EDGE-4: function definitions and calls.
+// edges: zero-arg, multi-arg, returning different types, recursion
+// (no recursion in this DSL but call chains), nested function calls.
+
+Create a console application.
+
+Make a function called zero() that returns an int:
+    return 0
+
+Make a function called inc(int x) that returns an int:
+    return x + 1
+
+Make a function called add(int a, int b) that returns an int:
+    return a + b
+
+Make a function called greet(string name) that returns a string:
+    return "Hello, " + name
+
+Make a function called classify(int n) that returns a string:
+    if n > 0:
+        return "positive"
+    if n < 0:
+        return "negative"
+    return "zero"
+
+When the program starts:
+    call zero
+    call inc(5)
+    call add(2, 3)
+    call greet("World")
+    call classify(5)
+    call classify(0)
+    call classify(-3)
+    call add(inc(1), inc(2))
+    call greet("a" + "b")
+    set n = 1
+    call inc(n)
+    print n
+    print classify(n)

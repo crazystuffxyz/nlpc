@@ -1,0 +1,33 @@
+// STRESS-EDGE-3: type coercion + numeric literals.
+// edges: hex, binary, decimal, floats, negative, big, zero, in
+// arithmetic and in print, in for-each source, in set RHS.
+
+Create a console application.
+
+When the program starts:
+    set hex = 0xFF
+    set bin = 0b1010
+    set dec = 42
+    set flt = 3.14
+    set neg = -7
+    set zero = 0
+    set big = 1000000
+    set sum = hex + bin
+    set product = dec * flt
+    set diff = neg - zero
+    print hex
+    print bin
+    print dec
+    print flt
+    print neg
+    print zero
+    print big
+    print sum
+    print product
+    print diff
+    for each i in 0:
+        print "zero iterations"
+    for each i in 1:
+        print "one iteration"
+    for each i in 16:
+        print i

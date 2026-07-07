@@ -1,0 +1,37 @@
+// STRESS-EDGE-6: file I/O, JSON, path handling.
+// edges: bare-word paths, string-literal paths, string-var paths,
+// json round-trip, file rename, file delete, read into var, write
+// from var, all in one program.
+
+Create a console application.
+
+When the program starts:
+    // bare-word path: a variable that holds the path
+    set p = "data.txt"
+    file_read p into raw
+    print raw
+    file_write p with "hello"
+
+    // string-literal path: literal filename
+    file_write "log.txt" with "started"
+    set log = "log.txt"
+    file_read log into content
+    print content
+
+    // json round-trip
+    set cfg_path = "config.json"
+    json_load cfg_path
+    set payload = "{\"name\":\"nlpc\",\"v\":1}"
+    json_save cfg_path with payload
+
+    // rename + delete
+    set old = "old.txt"
+    set new_name = "new.txt"
+    file_write old with "to be moved"
+    file_rename old to new_name
+    file_delete new_name
+
+    // file_read with the result bound to a new variable
+    set src = "input.txt"
+    file_read src into data
+    print data

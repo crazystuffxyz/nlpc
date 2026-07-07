@@ -1,0 +1,32 @@
+// STRESS-EDGE-2: nested scope + variable lifecycle.
+// edges: same name re-declared at every scope level, sibling loops
+// with shared local, nested if/for, deep nesting.
+
+Create a console application.
+
+When the program starts:
+    set x = 0
+    if x == 0:
+        set x = 1
+        if x == 1:
+            set x = 2
+            for each k in 3:
+                set x = x + k
+        set x = x + 10
+    set x = x + 100
+    print x
+    // sibling loops with the same local name
+    for each i in 3:
+        set temp = i * 2
+        print temp
+    for each j in 3:
+        set temp = j * 3
+        print temp
+    // 4-level deep nesting
+    set depth = 0
+    for each a in 2:
+        for each b in 2:
+            for each c in 2:
+                for each d in 2:
+                    set depth = depth + 1
+    print depth

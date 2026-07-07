@@ -32,9 +32,12 @@ test('rest-server.nlp produces http server scaffold', () => {
   const proj = emitProject(ir, 'rest');
   assert.match(cpp, /httplib::Server/);
   assert.match(cpp, /svr\.Get\("\/hello"/);
-  assert.match(proj.cmake, /cpp-httplib/);
+  // bug: cmake used to say `cpp-httplib` (the source lib name) but vcpkg's
+  // port is `httplib` and the CMake config it ships is `httplibConfig.cmake`.
+  // the find_package call has to match the port, so it's `httplib`.
+  assert.match(proj.cmake, /find_package\(httplib/);
   const deps = JSON.parse(proj.vcpkg).dependencies;
-  assert.ok(deps.includes('cpp-httplib'));
+  assert.ok(deps.includes('cpp-httplib'), 'vcpkg port name is the source lib name');
 });
 
 test('rest server reads PORT env var with 8080 fallback', () => {

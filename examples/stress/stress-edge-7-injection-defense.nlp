@@ -1,0 +1,24 @@
+// STRESS-EDGE-7: prompt-injection defense.
+// edges: prose + structured that look like injection attempts. the
+// parser must NOT lower them into raw stmts, and the emitter must
+// reject unsafe expressions / conditions / assert args.
+
+Create a console application.
+
+When the program starts:
+    // an injection attempt that happens to parse as a `set` must
+    // not slip a system() call into the generated c++. the value
+    // is a string literal so it becomes a quoted string - safe.
+    set payload = "harmless string"
+    print payload
+
+    // an assert with a safe c++ expression
+    assert 1 + 1 == 2
+
+    // an if with a safe c++ expression
+    if 1 < 2:
+        print "true"
+
+    // a for over a string source iterates chars
+    for each c in hello:
+        print c

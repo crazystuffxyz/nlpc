@@ -4,7 +4,7 @@
 //   --push: also push the tag and the release assets to github
 //   --tag:  override the tag (default: package.json version, prefixed with v)
 import { execSync, spawn } from 'node:child_process';
-import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync, statSync, createReadStream } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync, statSync, createReadStream, renameSync } from 'node:fs';
 import { resolve, join, basename } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
@@ -33,10 +33,12 @@ const tarball = execSync('npm pack', { encoding: 'utf8' }).trim();
 const tarballName = basename(tarball);
 console.log('[release] tarball:', tarballName);
 // npm pack drops the tarball in the cwd by default. move it to dist/.
+// cross-platform: use fs.renameSync (handles same-volume moves on win/mac/linux).
+// `move` is a windows-only cmd builtin and fails on macOS/Linux runners.
 const src = join(process.cwd(), tarballName);
 const stable = join(out, `nlpc-${pkg.version}.tgz`);
 if (existsSync(stable)) rmSync(stable);
-execSync(`move "${src}" "${stable}"`, { stdio: 'ignore' });
+renameSync(src, stable);
 const hash = sha256(stable);
 writeFileSync(`${stable}.sha256`, `${hash}  ${basename(stable)}\n`);
 console.log('[release] sha256:', hash);

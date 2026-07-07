@@ -12,3 +12,8 @@ build-stress/
 *.swp
 *.swo
 *.tar.gz
+
+# review-tool artifacts (kept out of git; regenerated locally by `node scan.cjs`)
+all_code.txt
+scan.cjs
+

@@ -1,0 +1,31 @@
+// STRESS-EDGE-8: error-recovery shapes.
+// edges: empty body, single-stmt body, deeply nested, mixed
+// declaration and behavior, function with no params, function with
+// all primitive returns, mixed return types in different functions.
+
+Create a console application.
+
+Make a function called noop() that returns an void:
+    set x = 1
+
+Make a function called silent() that returns an int:
+    // empty body - should still emit a typed zero
+    return 0
+
+Make a function called many_params(int a, int b, int c, int d) that returns an int:
+    return a + b + c + d
+
+When the program starts:
+    call noop
+    call silent
+    call many_params(1, 2, 3, 4)
+    print "ok"
+    // single-stmt body
+    if 1:
+        print "yes"
+    // body with only a print
+    for each i in 1:
+        print i
+    // an if without a body is treated as a no-op
+    if 0:
+        print "no"

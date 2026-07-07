@@ -1,0 +1,49 @@
+// STRESS-EDGE-1: every type of stmt in a single file.
+// edges: requires, application header, both field syntaxes, all
+// method verbs, all statement kinds, nested control flow.
+
+Require the fmt library.
+Require the JSON parser library.
+Create a rest application.
+
+Application:
+    type: REST API
+
+GET /health
+GET /users
+POST /users
+PUT /users/:id
+DELETE /users/:id
+PATCH /users/:id
+
+// these top-level stmts will be merged into the start behavior
+// the parser lowers them with bodies parsed through parseBodyLines
+if server_ready:
+    print "ready"
+    for each i in 5:
+        log info starting i
+
+When the program starts:
+    set greeting = "Hello"
+    set target = "World"
+    print greeting
+    ask name
+    set msg = greeting + ", " + name + "!"
+    print msg
+    if msg == greeting:
+        log info match
+    for each i in 10:
+        set sq = i * i
+        print sq
+    sleep 500
+    assert 1 < 2
+    set cfg = "config.json"
+    json_load cfg
+    json_save cfg with msg
+    file_read cfg into raw
+    file_write log.txt with msg
+    set src = "a.txt"
+    set dst = "b.txt"
+    file_rename src to dst
+    file_delete dst
+    return msg
