@@ -34,6 +34,7 @@ program
   .option('--ollama-host <url>', 'ollama server (default: $OLLAMA_HOST or http://127.0.0.1:11434)')
   .option('--vcpkg-root <path>', 'path to vcpkg (else $VCPKG_ROOT)')
   .option('--keep-build', 'do not wipe build dir before compiling')
+  .option('--allow-raw', 'allow raw stmts from LLM output (default: strip them)')
   .action(async (file, opts) => {
     const cfg = await loadConfig(opts);
     const spinner = ora('compiling').start();
@@ -96,6 +97,7 @@ program
   .option('--model <name>', 'ollama model (default: auto-pick from ollama list)')
   .option('--ollama-host <url>', 'ollama server (default: $OLLAMA_HOST or http://127.0.0.1:11434)')
   .option('--vcpkg-root <path>', 'path to vcpkg (else $VCPKG_ROOT)')
+  .option('--allow-raw', 'allow raw stmts from LLM output (default: strip them)')
   .action(async (pathArg, opts) => {
     const cfg = await loadConfig(opts);
     const abs = resolve(pathArg);
