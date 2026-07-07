@@ -277,3 +277,15 @@ test('arrow-style return type is recognized', () => {
   const cpp = emitCpp(ir);
   assert.match(cpp, /int sq\(int x\)/);
 });
+
+test('return with unary minus passes through as c++ expression', () => {
+  // bug: `return -value` used to re-quote as "-value" because EXPR_RE
+  // required the first char to be letter/digit/quote. allow up to two
+  // leading `-` so negative literals and unary minus work.
+  const src = 'Create a console application.\nMake a function called neg that takes a value and returns an int:\n    return -value\n';
+  const r = parseStructured(src);
+  const ir = buildIR(r.blocks, r.prose, 'f');
+  const cpp = emitCpp(ir);
+  assert.match(cpp, /return -value;/);
+  assert.doesNotMatch(cpp, /return "-value";/);
+});
