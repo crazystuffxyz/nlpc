@@ -582,3 +582,23 @@ test('hex literal 0xFF is a number, not a string (was: set hex = 0xFF emitted "0
   assert.match(cpp, /auto bin = 10;/);
   assert.doesNotMatch(cpp, /auto hex = "0xFF"/);
 });
+
+test('set with string literal declares std::string, not const char* (was: concat failed)', () => {
+  // bug: `set greeting = "Hello"` used to emit `auto greeting = "Hello";`
+  // which deduces `const char*`. later concatenation like
+  // `set combined = greeting + ", " + name` then failed at compile time
+  // because `const char*` doesn't support `+`. declaring the binding as
+  // `std::string` makes concatenation work without forcing the user to
+  // spell out the type. concat results stay `auto` (the compiler
+  // deduces std::string from the lhs).
+  const src = 'Create a console application.\nWhen the program starts:\n    set greeting = "Hello"\n    set name = "World"\n    set combined = greeting + ", " + name + "!"\n    print combined\n';
+  const r = parseStructured(src);
+  const ir = buildIR(r.blocks, r.prose, 'p');
+  const cpp = emitCpp(ir);
+  assert.match(cpp, /std::string greeting = "Hello";/);
+  assert.match(cpp, /std::string name = "World";/);
+  // the concat result is `auto` (not std::string) because the rhs
+  // isn't a quoted-literal set; the c++ type is deduced from the
+  // leftmost std::string operand, so the result type is std::string.
+  assert.match(cpp, /auto combined = greeting \+ ", " \+ name \+ "!";/);
+});

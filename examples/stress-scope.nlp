@@ -1,0 +1,27 @@
+// STRESS 7: type system + scoping + nested if/for
+// edges: variable inside for used outside (scope leak), nested if,
+//        arithmetic on float, string concat with non-string,
+//        re-declared variable, deeply nested for
+Create a console application.
+
+Make a function called adder(int a, int b) that returns an int:
+    return a + b
+
+When the program starts:
+    set total = 0
+    for each i in [1,2,3,4,5]:
+        for each j in [10,20,30]:
+            set total = total + i * j
+    print total
+    set greeting = "Hello"
+    set name = "World"
+    set combined = greeting + ", " + name + "!"
+    print combined
+    set pi = 3.14
+    set r = 2.5
+    set area = pi * r * r
+    print area
+    call adder(2, 3)
+    if 1 < 2:
+        if 3 < 4:
+            print "deep nested"
