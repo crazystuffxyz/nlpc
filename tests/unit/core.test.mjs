@@ -120,7 +120,9 @@ test('emitCpp handles http server for rest kind', () => {
   const ir = buildIR(r.blocks, r.prose, 'api');
   const cpp = emitCpp(ir);
   assert.match(cpp, /httplib::Server/);
-  assert.match(cpp, /svr\.get/);
+  // cpp-httplib exposes PascalCase methods (Get, Post, Put, Delete, Patch).
+  // the emitter used to call svr.get(...) lowercase which is a compile error.
+  assert.match(cpp, /svr\.Get\("\/hello"/);
 });
 
 test('emitProject produces CMakeLists with find_package for known deps', () => {

@@ -24,8 +24,6 @@
     { "keys": ["catch2", "catch"], "vcpkg": "catch2" },
     { "keys": ["benchmark", "google benchmark", "perf"], "vcpkg": "benchmark" },
     { "keys": ["eigen", "linear algebra", "matrix", "vector math"], "vcpkg": "eigen3" },
-    { "keys": ["openssl"], "vcpkg": "openssl" },
-    { "keys": ["curl"], "vcpkg": "curl" },
     { "keys": ["cli", "command line", "argument parser", "argparse"], "vcpkg": "cli11" },
     { "keys": ["toml", "toml++", "tomlplusplus", "toml parser"], "vcpkg": "tomlplusplus" },
     { "keys": ["yaml", "yaml-cpp", "yaml parser"], "vcpkg": "yaml-cpp" },

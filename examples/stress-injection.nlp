@@ -1,0 +1,13 @@
+// STRESS 2: security + injection + prompt-injection-as-program-name
+// edges: weird program name with slashes (must be slugged), json path with quote,
+//        file_read, file_write, raw stmt, prompt-injection style
+Create a console application.
+
+When the program starts:
+    json_load "../../../etc/passwd"
+    file_read "/etc/hostname" into host
+    file_write "/tmp/out.txt" with "hello\nworld\\"
+    raw std::system("echo pwned")
+    log info started
+    sleep 100
+    assert 1 == 1

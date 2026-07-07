@@ -1,0 +1,21 @@
+// STRESS 4: function with real body via indentation + if/for bodies
+// edges: function body captured, if with body, for with body, return inside fn
+Create a console application.
+
+Make a function called classify(int n) that returns a string:
+    if n > 0:
+        return positive
+    if n < 0:
+        return negative
+    return zero
+
+Make a function called total() that returns an int:
+    set sum = 0
+    for each x in {1,2,3,4,5}:
+        set sum = sum + x
+    return sum
+
+When the program starts:
+    call classify(5)
+    call total
+    print done

@@ -1,0 +1,14 @@
+// STRESS 1: type system + multi-word returns + paren-form params + zero-arg call
+// edges: int param, double return, list-of-strings return, call helper()
+Create a console application.
+
+Make a function called add(int a, int b) that returns an int.
+Make a function called pi() that returns a double.
+Make a function called tags() that returns a list of strings.
+Make a function called helper():
+    print helper
+
+When the program starts:
+    call add(2, 3)
+    call helper
+    print done

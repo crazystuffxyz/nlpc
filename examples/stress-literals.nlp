@@ -1,0 +1,17 @@
+// STRESS 5: edge-case literals + chained set + empty parens + numbers
+// edges: float literal, negative int, call with multiple args, set with quoted string
+Create a console application.
+
+Make a function called area(double r) that returns a double:
+    return 3.14159
+
+When the program starts:
+    set pi = 3.14
+    set neg = -7
+    set msg = "hello \"world\"\n\\done"
+    set empty = ""
+    call printf("x=%d y=%s", 42, "ok")
+    print pi
+    print neg
+    print msg
+    print empty

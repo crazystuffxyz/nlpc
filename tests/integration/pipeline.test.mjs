@@ -31,7 +31,7 @@ test('rest-server.nlp produces http server scaffold', () => {
   const cpp = emitCpp(ir);
   const proj = emitProject(ir, 'rest');
   assert.match(cpp, /httplib::Server/);
-  assert.match(cpp, /svr\.get\("\/hello"/);
+  assert.match(cpp, /svr\.Get\("\/hello"/);
   assert.match(proj.cmake, /cpp-httplib/);
   const deps = JSON.parse(proj.vcpkg).dependencies;
   assert.ok(deps.includes('cpp-httplib'));

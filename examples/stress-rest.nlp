@@ -1,0 +1,14 @@
+// STRESS 3: rest + every method + custom response + body in route
+// edges: GET/POST/PUT/PATCH/DELETE, route with body, route with custom response
+Application:
+    type: REST API
+
+GET /hello
+POST /echo
+PUT /update
+PATCH /patch
+DELETE /remove
+
+GET /custom
+    print hi
+    raw res.set_content("custom body", "text/plain");

@@ -31,6 +31,7 @@ program
   .option('--no-repair', 'disable the compile-error repair loop')
   .option('--no-run', 'compile only, do not run')
   .option('--model <name>', 'ollama model (default: auto-pick from ollama list)')
+  .option('--ollama-host <url>', 'ollama server (default: $OLLAMA_HOST or http://127.0.0.1:11434)')
   .option('--vcpkg-root <path>', 'path to vcpkg (else $VCPKG_ROOT)')
   .option('--keep-build', 'do not wipe build dir before compiling')
   .action(async (file, opts) => {
@@ -71,6 +72,7 @@ program
   .argument('<file>', 'input .nlp file')
   .option('-o, --out <dir>', 'output directory', 'build-out')
   .option('--model <name>', 'ollama model (default: auto-pick from ollama list)')
+  .option('--ollama-host <url>', 'ollama server (default: $OLLAMA_HOST or http://127.0.0.1:11434)')
   .option('--vcpkg-root <path>', 'path to vcpkg (else $VCPKG_ROOT)')
   .action(async (file, opts) => {
     const cfg = await loadConfig(opts);
@@ -92,6 +94,7 @@ program
   .option('--no-repair', 'disable the compile-error repair loop')
   .option('--no-run', 'compile only, do not run')
   .option('--model <name>', 'ollama model (default: auto-pick from ollama list)')
+  .option('--ollama-host <url>', 'ollama server (default: $OLLAMA_HOST or http://127.0.0.1:11434)')
   .option('--vcpkg-root <path>', 'path to vcpkg (else $VCPKG_ROOT)')
   .action(async (pathArg, opts) => {
     const cfg = await loadConfig(opts);
@@ -161,6 +164,7 @@ program
   .option('--no-repair', 'disable the compile-error repair loop')
   .option('--no-run', 'recompile only, do not run the binary')
   .option('--model <name>', 'ollama model (default: auto-pick from ollama list)')
+  .option('--ollama-host <url>', 'ollama server (default: $OLLAMA_HOST or http://127.0.0.1:11434)')
   .option('--vcpkg-root <path>', 'path to vcpkg (else $VCPKG_ROOT)')
   .action(async (file, opts) => {
     const cfg = await loadConfig(opts);
@@ -174,10 +178,16 @@ program.parseAsync(process.argv).catch(e => {
   process.exit(1);
 });
 
-// non-blocking version check. runs at most once per CLI invocation.
-// failures are silent (don't pollute output for offline users).
-checkForUpdate().then(r => {
-  if (r?.ok && !r.upToDate) {
-    console.error(chalk.yellow(`\nnlpc ${r.latest} available (you have ${r.current}). run: npm install -g crazystuffxyz/nlpc`));
-  }
-}).catch(() => {});
+// non-blocking version check. skip when the user is running `nlpc update`
+// itself (that handler does its own check), or for trivial info subcommands
+// where the trailing message would just be noise. failures are silent
+// (don't pollute output for offline users).
+const updateCheckCmds = new Set(['compile', 'run', 'build', 'watch']);
+const invoked = process.argv.slice(2).find(a => !a.startsWith('-'));
+if (invoked && updateCheckCmds.has(invoked)) {
+  checkForUpdate().then(r => {
+    if (r?.ok && !r.upToDate) {
+      console.error(chalk.yellow(`\nnlpc ${r.latest} available (you have ${r.current}). run: npm install -g crazystuffxyz/nlpc`));
+    }
+  }).catch(() => {});
+}
