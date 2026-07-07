@@ -1,0 +1,17 @@
+// STRESS 14: rest routes
+// edges: route with status code, route with body, missing content-type
+Application:
+    type: REST API
+
+Require the JSON parser library.
+Require the HTTP client library.
+
+When the program starts:
+    serve on port 8080
+
+GET /hello
+POST /echo
+
+GET /api/v1
+    return "api response"
+    return 200
